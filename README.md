@@ -2,6 +2,8 @@
 
 A MapLibre GL JS style + geo data for the IIT Bombay campus map.
 
+http://iitb-oss.github.io/iitbmap
+
 ## Install
 
 For local development against another project:
