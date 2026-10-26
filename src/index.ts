@@ -9,6 +9,15 @@ export {
   BOUNDARY_LAYER_ID,
   IITB_BOUNDARY,
   boundaryLayer,
+  PIPELINE_SOURCE_ID,
+  PIPELINE_LAYER_ID,
+  IITB_PIPELINE,
+  pipelineLayer,
+  ROADS_SOURCE_ID,
+  ROAD_WIDTH_LAYER_ID,
+  ROAD_WIDTH_MIN_ZOOM,
+  IITB_ROADS,
+  roadWidthLayer,
   ADDED_BUILDINGS_LAYER_ID,
   addedBuildingsLayer,
   BUILDINGS_3D_LAYER_ID,
@@ -20,7 +29,7 @@ export {
   type MergeCampusLayersOptions,
 } from "./style";
 
-export { CAMPUS_BOUNDS, CAMPUS_CENTER, CAMPUS_BBOX, MIN_ZOOM, MAX_ZOOM, MAP_BG, MAP_BG_DARK, inCampusBbox } from "./geo";
+export { CAMPUS_BOUNDS, CAMPUS_MAX_BOUNDS, CAMPUS_CENTER, CAMPUS_BBOX, MIN_ZOOM, MAX_ZOOM, MAP_BG, MAP_BG_DARK, inCampusBbox } from "./geo";
 
 export {
   IITB_BUILDINGS,
@@ -36,6 +45,8 @@ export {
   setBuildingLabelsVisible,
   buildingCentroid,
   storeysByName,
+  storeysLabel,
+  builtUpByName,
 } from "./buildings";
 
 export {

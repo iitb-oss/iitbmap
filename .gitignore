@@ -22,3 +22,6 @@ CLAUDE.md
 
 # osmnx HTTP cache from scripts/
 cache/
+
+# master plan check work dir (PDFs, renders, report)
+scripts/masterplan/

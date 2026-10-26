@@ -54,6 +54,12 @@ export function pinnedLabels(fc: FeatureCollection = IITB_BUILDINGS): FeatureCol
 /** From this zoom labels add the storey count as a smaller second line. */
 export const STOREYS_MIN_ZOOM = 17;
 
+/** Matches fetch-buildings.py storeys_label: floors above ground, so G+2 (3 levels) is "2 storeys". */
+export function storeysLabel(levels: number): string {
+  const above = levels - 1;
+  return above ? `${above} storey${above === 1 ? "" : "s"}` : "Ground floor";
+}
+
 /** Building name -> storeys wording; a name on several polygons gets its tallest. */
 export function storeysByName(): Map<string, string> {
   return new Map(
@@ -61,6 +67,13 @@ export function storeysByName(): Map<string, string> {
       .filter((f) => f.properties?.storeys)
       .sort((a, b) => a.properties!.levels - b.properties!.levels)
       .map((f) => [f.properties!.name as string, f.properties!.storeys as string]),
+  );
+}
+
+/** Building name -> built-up area over all floors (m²), from the master plan. */
+export function builtUpByName(): Map<string, number> {
+  return new Map(
+    IITB_BUILDINGS.features.filter((f) => f.properties?.bua_m2).map((f) => [f.properties!.name as string, f.properties!.bua_m2 as number]),
   );
 }
 

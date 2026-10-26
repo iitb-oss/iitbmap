@@ -6,6 +6,7 @@ import type {
   LineLayerSpecification,
   Map as MaplibreMap,
   StyleSpecification,
+  SymbolLayerSpecification,
 } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
 import { CAMPUS_BBOX, MAP_BG, MAP_BG_DARK, MAX_ZOOM, MIN_ZOOM } from "./geo";
@@ -16,12 +17,24 @@ import {
 import { DEFAULT_GLYPHS_URL, DEFAULT_TILE_URL } from "./config";
 import { FOOD_SOURCE_ID, foodLayers, IITB_FOOD } from "./food";
 import boundary from "./iitb-boundary.json";
+import pipeline from "./iitb-pipeline.json";
+import roads from "./iitb-roads.json";
 
 export const CAMPUS_SOURCE_ID = "campus";
 export const BOUNDARY_SOURCE_ID = "boundary";
 export const BOUNDARY_LAYER_ID = "campus-boundary";
 /** The campus outline (OSM relation 8546708). */
 export const IITB_BOUNDARY = boundary as FeatureCollection;
+export const PIPELINE_SOURCE_ID = "pipeline";
+export const PIPELINE_LAYER_ID = "pipeline";
+/** The Tansa water mains along the north edge (OSM man_made=pipeline, scripts/fetch-pipeline.py). */
+export const IITB_PIPELINE = pipeline as FeatureCollection;
+export const ROADS_SOURCE_ID = "roads";
+export const ROAD_WIDTH_LAYER_ID = "road-width";
+/** OSM roads with their master plan width (width_m) and length (length_m); scripts/masterplan.py. */
+export const IITB_ROADS = roads as FeatureCollection;
+/** From this zoom roads with a known width are labelled "12 m wide". */
+export const ROAD_WIDTH_MIN_ZOOM = 16;
 
 export const ATTRIBUTION =
   '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -31,10 +44,12 @@ export const PALETTE = {
   light: {
     green: "#c7dcb4", parking: "#d5dccf", water: "#a9cfe0", line: "#ffffff", path: "#a39e90",
     building: "#b9b3a6", academic: "#c98a5e", hostel: "#7d8fbf", residence: "#c9c2b2", boundary: "#1d5fd6",
+    pipeline: "#3b9be8",
   },
   dark: {
     green: "#263a29", parking: "#2a332c", water: "#1d3b4c", line: "#3a443c", path: "#5c655c",
     building: "#45433d", academic: "#b07450", hostel: "#5e6fa0", residence: "#4a4a42", boundary: "#f2c94c",
+    pipeline: "#4fa8f0",
   },
 } as const;
 
@@ -135,6 +150,31 @@ export function boundaryLayer(dark = false): LineLayerSpecification {
   };
 }
 
+/** Water mains, blue on both themes. */
+export function pipelineLayer(dark = false): LineLayerSpecification {
+  const c = dark ? PALETTE.dark : PALETTE.light;
+  return {
+    id: PIPELINE_LAYER_ID, type: "line", source: PIPELINE_SOURCE_ID,
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": c.pipeline, "line-width": ["interpolate", ["linear"], ["zoom"], MIN_ZOOM, 1.5, MAX_ZOOM, 6] },
+  };
+}
+
+/** "12 m wide" along roads the master plan gives a width. */
+export function roadWidthLayer(dark = false): SymbolLayerSpecification {
+  const c = dark ? PALETTE.dark : PALETTE.light;
+  return {
+    id: ROAD_WIDTH_LAYER_ID, type: "symbol", source: ROADS_SOURCE_ID, minzoom: ROAD_WIDTH_MIN_ZOOM,
+    layout: {
+      "symbol-placement": "line",
+      "text-field": ["concat", ["to-string", ["get", "width_m"]], " m wide"],
+      "text-font": ["Inter Regular"],
+      "text-size": 10,
+    },
+    paint: { "text-color": c.path, "text-halo-color": dark ? MAP_BG_DARK : MAP_BG, "text-halo-width": 1.4, "text-halo-blur": 0.2 },
+  };
+}
+
 export const ADDED_BUILDINGS_LAYER_ID = "buildings-added";
 
 /** Campus academic buildings, plus buildings the tiles lack (IITB_EDITS) or miscolor (recolor). */
@@ -167,7 +207,7 @@ export function buildings3dLayer(dark = false): FillExtrusionLayerSpecification 
     layout: { visibility: "none" },
     paint: {
       "fill-extrusion-color": buildingColor(c),
-      // ponytail: a "3+ storeys" minimum is drawn at 3; the housing listings give no more
+      // ponytail: a "2+ storeys" minimum (3 levels) is drawn at 3; the housing listings give no more
       "fill-extrusion-height": ["*", ["get", "levels"], STOREY_M],
       "fill-extrusion-opacity": 0.9,
     },
@@ -213,8 +253,11 @@ function themedLayers(dark: boolean): LayerSpecification[] {
   return [
     { id: "bg", type: "background", paint: { "background-color": dark ? MAP_BG_DARK : MAP_BG } },
     ...campusLayers(dark),
+    pipelineLayer(dark),
     addedBuildingsLayer(dark),
     boundaryLayer(dark),
+    // below building labels, so buildings win label collisions
+    roadWidthLayer(dark),
     buildings3dLayer(dark),
     buildingLabelLayer({ dark }),
     // above unpinned labels, so a pinned label wins collisions
@@ -240,6 +283,8 @@ export function getCampusStyle(opts: CampusStyleOptions = {}): StyleSpecificatio
       },
       [BUILDINGS_SOURCE_ID]: { type: "geojson", data: IITB_BUILDINGS },
       [BOUNDARY_SOURCE_ID]: { type: "geojson", data: IITB_BOUNDARY },
+      [PIPELINE_SOURCE_ID]: { type: "geojson", data: IITB_PIPELINE },
+      [ROADS_SOURCE_ID]: { type: "geojson", data: IITB_ROADS },
       [PINS_SOURCE_ID]: { type: "geojson", data: pinnedLabels() },
       [FOOD_SOURCE_ID]: { type: "geojson", data: IITB_FOOD },
     },

@@ -6,6 +6,7 @@ import {
   getCampusStyle,
   setCampusTheme,
   CAMPUS_CENTER,
+  CAMPUS_MAX_BOUNDS,
   MIN_ZOOM,
   MAX_ZOOM,
   filterBuildings,
@@ -240,6 +241,7 @@ export default function App() {
     if (map && styleReadyRef.current) setCampusTheme(map, dark);
   }, [dark]);
   const [shown, setShown] = React.useState(SHOW_ALL);
+  const listGroups = React.useMemo(() => shownGroupsOf(shown), [shown]); // stable, so BuildingList's memo holds
   const [buildings3d, setBuildings3dOn] = React.useState(true);
   const [tileUrlDraft, setTileUrlDraft] = React.useState(() =>
     import.meta.env.DEV && import.meta.env.VITE_LOCAL_TILES ? `${window.location.origin}/tiles/{z}/{x}/{y}.pbf` : "",
@@ -444,6 +446,7 @@ export default function App() {
       pitch: buildings3d ? PITCH_3D : 0,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
+      maxBounds: CAMPUS_MAX_BOUNDS,
     });
     mapRef.current = map;
     // layer listeners outlive setStyle, so register once
@@ -898,7 +901,7 @@ export default function App() {
           )}
         </CardContent>
       </Card>
-      <BuildingList groups={shownGroupsOf(shown)} storeys={buildingStoreys} selected={toValue.trim()} dark={dark} wideQuery={WIDE_SCREEN} onPick={setToValue} />
+      <BuildingList groups={listGroups} storeys={buildingStoreys} selected={toValue.trim()} dark={dark} wideQuery={WIDE_SCREEN} onPick={setToValue} />
       <div id="map" ref={mapContainerRef} />
     </>
   );

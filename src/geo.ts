@@ -5,6 +5,11 @@ export const CAMPUS_BOUNDS: LngLatBoundsLike = [
   [72.903, 19.115],
   [72.928, 19.157],
 ];
+// How far the map pans: the master plan sheet's extent around the campus.
+export const CAMPUS_MAX_BOUNDS: LngLatBoundsLike = [
+  [72.898, 19.12],
+  [72.924, 19.145],
+];
 export const CAMPUS_CENTER: [number, number] = [72.9155, 19.136];
 export const CAMPUS_BBOX = { latMin: 19.115, latMax: 19.157, lngMin: 72.903, lngMax: 72.928 };
 export const MIN_ZOOM = 13;

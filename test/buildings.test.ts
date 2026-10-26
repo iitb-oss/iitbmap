@@ -47,8 +47,9 @@ describe("buildingLabelLayer", () => {
 describe("storeysByName", () => {
   it("words known storeys, marking housing-listing minimums with a plus", () => {
     const storeys = storeysByName();
-    expect(storeys.get("Hostel 17")).toBe("9 storeys");
-    expect([...storeys.values()].every((s) => /^\d+\+? storeys?$/.test(s))).toBe(true);
+    expect(storeys.get("Hostel 17")).toBe("8 storeys"); // G+8: floors above ground
+    expect(storeys.get("Convocation Hall")).toBe("Ground floor");
+    expect([...storeys.values()].every((s) => /^(\d+\+? storeys?|Ground floor)$/.test(s))).toBe(true);
     expect([...storeys.values()].some((s) => s.includes("+"))).toBe(true);
   });
 });

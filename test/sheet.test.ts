@@ -11,9 +11,9 @@ describe("sheet", () => {
   });
 
   it("reads storeys like fetch-buildings.py", () => {
-    const rows: Record<string, string>[] = [{ storeys: "5", known_storeys: "3" }, { known_storeys: "4*" }, { known_storeys: "3+" }, { storeys: "" }];
+    const rows: Record<string, string>[] = [{ storeys: "5", known_storeys: "3" }, { known_storeys: "4*" }, { known_storeys: "3+" }, { storeys: "" }, { known_storeys: "3", source: "OSM" }];
     expect(rows.map(sheetStoreys))
-      .toEqual([5, 4, undefined, undefined]);
+      .toEqual([5, 4, undefined, undefined, undefined]);
   });
 
   it("formats hours like fetch-food.py", () => {

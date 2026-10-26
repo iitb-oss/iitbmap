@@ -1,4 +1,5 @@
 import type { FeatureCollection } from "geojson";
+import { storeysLabel } from "../../../src/buildings";
 
 // the public sheet scripts/fetch-*.py snapshot into the bundled JSON
 const SHEET = "https://docs.google.com/spreadsheets/d/1St3ghkdXqslnXp3y6dtw8Z-9RdMlNP7-HPTFOZSFoQI/export?format=csv&gid=";
@@ -24,9 +25,9 @@ export function parseCsv(text: string): Record<string, string>[] {
   return body.filter((r) => r.some(Boolean)).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()])));
 }
 
-/** Matches fetch-buildings.py: storeys, else known_storeys; "3+" is a housing minimum. */
+/** Matches fetch-buildings.py: storeys, else known_storeys with no source (typed by hand); "3+" is a housing minimum. */
 export function sheetStoreys(row: Record<string, string>): number | undefined {
-  const value = row.storeys || row.known_storeys || "";
+  const value = row.storeys || (row.source ? "" : row.known_storeys) || "";
   const n = parseInt(value, 10);
   return n > 0 && !value.endsWith("+") ? n : undefined;
 }
@@ -49,7 +50,7 @@ export async function applySheet(buildings: FeatureCollection, food: FeatureColl
   for (const { properties: p } of buildings.features) {
     const r = p && byName.get(p.name);
     const n = r && sheetStoreys(r);
-    if (n) Object.assign(p, { levels: n, storeys: `${n} storey${n === 1 ? "" : "s"}` });
+    if (n) Object.assign(p, { levels: n, storeys: storeysLabel(n) });
   }
   const hand = new Map(foodRows.map((r) => [r.name, r]));
   for (const { properties: p } of food.features) {
