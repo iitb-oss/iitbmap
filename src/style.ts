@@ -24,24 +24,22 @@ export const BOUNDARY_LAYER_ID = "campus-boundary";
 export const IITB_BOUNDARY = boundary as FeatureCollection;
 
 export const ATTRIBUTION =
-  '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · ' +
-  'basemap style adapted from <a href="https://github.com/marceloprates/prettymaps">prettymaps</a>';
+  '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 /** Campus layer colors; also used by link previews. */
 export const PALETTE = {
   light: {
-    green: "#c7dcb4", parking: "#d5dccf", water: "#a9cfe0", line: "#ffffff", mainRoad: "#f3d38a", path: "#a39e90",
+    green: "#c7dcb4", parking: "#d5dccf", water: "#a9cfe0", line: "#ffffff", path: "#a39e90",
     building: "#b9b3a6", academic: "#c98a5e", hostel: "#7d8fbf", residence: "#c9c2b2", boundary: "#1d5fd6",
   },
   dark: {
-    green: "#263a29", parking: "#2a332c", water: "#1d3b4c", line: "#3a443c", mainRoad: "#8c6f34", path: "#5c655c",
+    green: "#263a29", parking: "#2a332c", water: "#1d3b4c", line: "#3a443c", path: "#5c655c",
     building: "#45433d", academic: "#b07450", hostel: "#5e6fa0", residence: "#4a4a42", boundary: "#f2c94c",
   },
 } as const;
 
 export { BUILDING_KINDS, buildingKind, type BuildingKind } from "./buildings";
 
-export const MAIN_ROADS = ["motorway", "trunk", "primary", "primary_link", "secondary", "tertiary"];
 export const PATHS = ["footway", "path", "steps", "track", "cycleway", "pedestrian"];
 
 /** Relative street width by OSM highway tag; also used by link previews. */
@@ -96,10 +94,7 @@ export function campusLayers(dark = false): (FillLayerSpecification | LineLayerS
       id: "campus-streets", type: "line", source: CAMPUS_SOURCE_ID, "source-layer": "streets",
       filter: ["!", ["in", ["get", "highway"], ["literal", PATHS]]],
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": ["case", ["in", ["get", "highway"], ["literal", MAIN_ROADS]], c.mainRoad, c.line],
-        "line-width": zoomWidth(STREET_WEIGHT, 0.45),
-      },
+      paint: { "line-color": c.line, "line-width": zoomWidth(STREET_WEIGHT, 0.45) },
     },
     {
       id: "campus-paths", type: "line", source: CAMPUS_SOURCE_ID, "source-layer": "streets",
@@ -109,7 +104,8 @@ export function campusLayers(dark = false): (FillLayerSpecification | LineLayerS
     {
       id: "campus-building", type: "fill", source: CAMPUS_SOURCE_ID, "source-layer": "building",
       paint: {
-        "fill-color": buildingColor(c),
+        // tiles reach off campus; addedBuildingsLayer paints campus academic orange
+        "fill-color": buildingColor({ ...c, academic: c.building }),
         "fill-outline-color": c.line,
         "fill-opacity": BUILDING_OPACITY,
       },
@@ -141,12 +137,17 @@ export function boundaryLayer(dark = false): LineLayerSpecification {
 
 export const ADDED_BUILDINGS_LAYER_ID = "buildings-added";
 
-/** Buildings the tiles lack (IITB_EDITS) or color wrongly (recolor, from fetch-buildings). */
+/** Campus academic buildings, plus buildings the tiles lack (IITB_EDITS) or miscolor (recolor). */
 export function addedBuildingsLayer(dark = false): FillLayerSpecification {
   const c = dark ? PALETTE.dark : PALETTE.light;
   return {
     id: ADDED_BUILDINGS_LAYER_ID, type: "fill", source: BUILDINGS_SOURCE_ID,
-    filter: ["any", ["has", "added"], ["has", "recolor"]],
+    // areas (grounds) get a label only
+    filter: [
+      "all",
+      ["!", ["has", "area"]],
+      ["any", ["has", "added"], ["has", "recolor"], ["in", ["get", "building"], ["literal", BUILDING_KINDS.academic]]],
+    ],
     paint: { "fill-color": buildingColor(c), "fill-outline-color": c.line, "fill-opacity": BUILDING_OPACITY },
   };
 }

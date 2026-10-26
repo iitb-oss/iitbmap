@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { searchNames } from "../demo/src/lib/fuzzy";
 import { BUILDING_ALIASES } from "../demo/src/lib/aliases";
 import { IITB_BUILDINGS } from "../src/buildings";
+import { PLACE_NAMES } from "../demo/src/lib/places";
 
 const names = [...new Set(IITB_BUILDINGS.features.map((f) => f.properties!.name as string))];
 
@@ -37,8 +38,8 @@ describe("searchNames", () => {
     expect(searchNames(q, names, BUILDING_ALIASES)).toContain(name);
   });
 
-  it("only has aliases for buildings that exist", () => {
-    for (const name of Object.keys(BUILDING_ALIASES)) expect(names).toContain(name);
+  it("only has aliases for places that exist", () => {
+    for (const name of Object.keys(BUILDING_ALIASES)) expect(PLACE_NAMES).toContain(name);
   });
 
   it("does not match unrelated words", () => {

@@ -1,12 +1,14 @@
 {
-  "name": "iitbmap demo",
-  "short_name": "iitbmap",
+  "id": ".",
+  "name": "IIT Bombay Campus Map",
+  "short_name": "IITB Map",
   "description": "IIT Bombay campus map and walking/driving directions",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "background_color": "#fbfcf8",
+  "theme_color": "#fbfcf8",
+  "categories": ["navigation", "travel", "education"],
   "icons": [
     { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

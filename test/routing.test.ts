@@ -33,6 +33,14 @@ describe("findRoute", () => {
       expect(route!.distanceMeters).toBeLessThan(600);
     },
   );
+  // Regression guard: osmnx's "drive" network once dropped every campus road (service, access=private).
+  it.each(IITB_BUILDINGS.features.filter((_, i) => i % 15 === 0))(
+    "snaps $properties.name to a nearby drive-network node",
+    (feature) => {
+      const point = buildingCentroid(feature as Feature<Polygon>);
+      expect(findRoute(point, point, "drive")!.distanceMeters).toBeLessThan(400);
+    },
+  );
 });
 
 describe("findRoutes", () => {
@@ -86,16 +94,22 @@ describe("routeSteps", () => {
   });
 
   it("walks from the Main Gate to the Research Park up Main Gate Road", () => {
-    const r = findRoute(at("Main Gate (Gate 2)"), at("ASPIRE - IITB Research Park"), "walk")!;
+    const r = findRoute(at("Main Gate (Gate 2)"), at("ASPIRE Research Park"), "walk")!;
     expect(texts(r)).toEqual(["Head northwest on Main Gate Road", "Turn right", "Bear left", "Arrive"]);
     const steps = routeSteps(r);
     expect(steps[0].distanceMeters).toBeGreaterThan(1500); // Main Gate Road runs to the hostels
     expect(steps.reduce((a, s) => a + s.distanceMeters, 0)).toBeCloseTo(r.distanceMeters);
   });
 
-  it("drives from the Main Gate to the Research Park round the outside road", () => {
-    const r = findRoute(at("Main Gate (Gate 2)"), at("ASPIRE - IITB Research Park"), "drive");
-    expect(texts(r)).toEqual(["Head south", "Turn right onto Adi Sankaracharya Marg", "Bear right", "Arrive"]);
+  it("drives from the Main Gate to the Research Park up Main Gate Road", () => {
+    const steps = routeSteps(findRoute(at("Main Gate (Gate 2)"), at("ASPIRE Research Park"), "drive")!);
+    expect(steps.some((s) => s.text.endsWith("onto Main Gate Road") && s.distanceMeters > 1500)).toBe(true);
+  });
+
+  it("drives from Staff Hostel to VMCC on campus roads", () => {
+    const texts = routeSteps(findRoute(at("Staff Hostel"), at("Viktor Menezes Convention Centre"), "drive")!).map((s) => s.text);
+    expect(texts).toContain("Turn right onto Main Gate Road");
+    expect(texts).toContain("Turn right onto Hillside Road");
   });
 
   it("starts every step on the route and ends with Arrive", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUILDING_LABEL_FILTER, BUILDING_LABEL_LAYER_ID } from "../src/buildings";
-import { BUILDINGS_3D_LAYER_ID, buildings3dLayer, campusLayers, filterBuildings, getCampusStyle, mergeCampusLayers, STOREY_M } from "../src/style";
+import { addedBuildingsLayer, BUILDINGS_3D_LAYER_ID, buildings3dLayer, campusLayers, filterBuildings, getCampusStyle, mergeCampusLayers, STOREY_M } from "../src/style";
 
 describe("campusLayers", () => {
   it("defines one layer per campus source-layer, bottom to top", () => {
@@ -31,13 +31,16 @@ describe("campusLayers", () => {
 
   it("colors buildings by type, with distinct academic / hostel / residence fills", () => {
     for (const dark of [false, true]) {
-      const fill = (campusLayers(dark).find((l) => l.id === "campus-building")!.paint as Record<string, unknown>)[
-        "fill-color"
-      ] as unknown[];
+      const fill = addedBuildingsLayer(dark).paint!["fill-color"] as unknown[];
       expect(fill[0]).toBe("match");
       const colors = [fill[3], fill[5], fill[7], fill[8]];
       expect(new Set(colors).size).toBe(4);
     }
+  });
+
+  it("leaves academic tile buildings plain, since the tiles reach off campus", () => {
+    const fill = (campusLayers().find((l) => l.id === "campus-building")!.paint as Record<string, unknown>)["fill-color"] as unknown[];
+    expect(fill[5]).toBe(fill[8]);
   });
 
   it("splits streets and footpaths into separate layers, only footpaths dashed", () => {
@@ -48,7 +51,7 @@ describe("campusLayers", () => {
 
   it("dark streets are darker than light streets (no glare at night)", () => {
     const lineOf = (dark: boolean) =>
-      ((campusLayers(dark).find((l) => l.id === "campus-streets")!.paint as Record<string, unknown>)["line-color"] as unknown[])[3] as string;
+      (campusLayers(dark).find((l) => l.id === "campus-streets")!.paint as Record<string, unknown>)["line-color"] as string;
     expect(hexLightness(lineOf(true))).toBeLessThan(hexLightness(lineOf(false)));
   });
 });

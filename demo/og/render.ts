@@ -2,9 +2,9 @@
 import { VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
 import type { Feature, Polygon, Position } from "geojson";
-import { buildingCentroid, CAMPUS_BBOX, MAP_BG, type Route, type RoutingProfile } from "../../src/index";
+import { buildingCentroid, CAMPUS_BBOX, IITB_BUILDINGS, MAP_BG, type Route, type RoutingProfile } from "../../src/index";
 import { DEFAULT_TILE_URL } from "../../src/config";
-import { BUILDING_OPACITY, buildingKind, DEFAULT_STREET_WEIGHT, MAIN_ROADS, PALETTE, PATHS, STREET_WEIGHTS } from "../../src/style";
+import { BUILDING_OPACITY, buildingKind, DEFAULT_STREET_WEIGHT, PALETTE, PATHS, STREET_WEIGHTS } from "../../src/style";
 import { formatRouteInfo, MARKER_COLORS } from "../src/lib/places";
 
 export const W = 1200;
@@ -35,7 +35,7 @@ const ringsToPath = (rings: Pt[][], close: boolean) =>
   rings.map((r) => "M" + r.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L") + (close ? "Z" : "")).join("");
 export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-export interface Basemap { fills: Record<string, string>; streets: { d: string; w: number; color: string; dashed: boolean }[]; waterways: string }
+export interface Basemap { fills: Record<string, string>; streets: { d: string; w: number; dashed: boolean }[]; waterways: string }
 
 const emptyFills = () => ({ green: "", parking: "", building: "", academic: "", hostel: "", residence: "", water: "" });
 const BUILDING_FILLS = ["building", "academic", "hostel", "residence"] as const;
@@ -62,12 +62,11 @@ function loadTile(tx: number, ty: number, onMissing: (url: string) => void): Pro
           const f = layer.feature(i);
           const rings = f.loadGeometry().map((ring) => ring.map((p): Pt => [tx * 256 + p.x * scale - ORIGIN.x, ty * 256 + p.y * scale - ORIGIN.y]));
           const hw = String(f.properties.highway);
-          if (name === "building") out.fills[buildingKind(f.properties.building)] += ringsToPath(rings, true);
+          if (name === "building") out.fills[tileKind(f.properties.building)] += ringsToPath(rings, true);
           else if (name in out.fills) out.fills[name] += ringsToPath(rings, true);
           else if (name === "streets") out.streets.push({
             d: ringsToPath(rings, false),
             w: STREET_WEIGHTS[hw] ?? DEFAULT_STREET_WEIGHT,
-            color: PATHS.includes(hw) ? COLORS.path : MAIN_ROADS.includes(hw) ? COLORS.mainRoad : COLORS.line,
             dashed: PATHS.includes(hw),
           });
           else if (name === "waterway") out.waterways += ringsToPath(rings, false);
@@ -79,6 +78,25 @@ function loadTile(tx: number, ty: number, onMissing: (url: string) => void): Pro
   }
   return tile;
 }
+
+// tiles reach off campus; academic fills come from campus buildings only, as on the map
+const tileKind = (tag: unknown) => {
+  const kind = buildingKind(tag);
+  return kind === "academic" ? "building" : kind;
+};
+let campusAcademic: { box: Box; d: string }[] | undefined;
+const academicIn = (box: Box) => {
+  campusAcademic ??= (IITB_BUILDINGS.features as Feature<Polygon>[])
+    .filter((f) => f.geometry.type === "Polygon" && buildingKind(f.properties?.building) === "academic")
+    .map((f) => {
+      const rings = f.geometry.coordinates.map((r) => r.map(project));
+      return { box: boxOf(rings[0]), d: ringsToPath(rings, true) };
+    });
+  return campusAcademic
+    .filter((a) => a.box.x1 >= box.x0 && a.box.x0 <= box.x1 && a.box.y1 >= box.y0 && a.box.y0 <= box.y1)
+    .map((a) => a.d)
+    .join("");
+};
 
 export async function loadBasemap(box: Box, onMissing: (url: string) => void = () => {}): Promise<Basemap> {
   const t = (n: number) => Math.floor(n / 256);
@@ -93,6 +111,7 @@ export async function loadBasemap(box: Box, onMissing: (url: string) => void = (
     merged.streets.push(...tile.streets);
     merged.waterways += tile.waterways;
   }
+  merged.fills.academic += academicIn(box);
   return merged;
 }
 
@@ -158,7 +177,7 @@ export function sceneSvg(basemap: Basemap, scene: Scene): string {
 <g transform="scale(${k}) translate(${(-box.x0).toFixed(2)} ${(-box.y0).toFixed(2)})">
   <path d="${basemap.fills.green}" fill="${COLORS.green}"/>
   <path d="${basemap.fills.parking}" fill="${COLORS.parking}"/>
-  ${basemap.streets.map((s) => `<path d="${s.d}" fill="none" stroke="${s.color}" stroke-linecap="round" stroke-width="${px(s.dashed ? s.w : s.w * 1.4)}"${s.dashed ? ` stroke-dasharray="${px(6)} ${px(6)}"` : ""}/>`).join("")}
+  ${basemap.streets.map((s) => `<path d="${s.d}" fill="none" stroke="${s.dashed ? COLORS.path : COLORS.line}" stroke-linecap="round" stroke-width="${px(s.dashed ? s.w : s.w * 1.4)}"${s.dashed ? ` stroke-dasharray="${px(6)} ${px(6)}"` : ""}/>`).join("")}
   ${BUILDING_FILLS.map((k) => `<path d="${basemap.fills[k]}" fill="${COLORS[k]}" fill-opacity="${BUILDING_OPACITY}"/>`).join("")}
   <path d="${basemap.fills.water}" fill="${COLORS.water}"/>
   <path d="${basemap.waterways}" fill="none" stroke="${COLORS.water}" stroke-width="${px(3)}"/>

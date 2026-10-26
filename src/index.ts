@@ -50,6 +50,8 @@ export {
   applyFoodEdits,
   foodLayers,
   setFoodLabelsVisible,
+  setFoodHighlight,
+  NON_FOOD_AMENITIES,
 } from "./food";
 
 export { findRoute, findRoutes, routeSteps, type RoutingProfile, type Route, type RouteStep } from "./routing";

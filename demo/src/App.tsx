@@ -1,6 +1,6 @@
 import * as React from "react";
 import maplibregl from "maplibre-gl";
-import { MapPin, Navigation, Settings, Share2, X } from "lucide-react";
+import { Download, MapPin, Navigation, Settings, Share2, Utensils, X } from "lucide-react";
 
 import {
   getCampusStyle,
@@ -10,6 +10,8 @@ import {
   MAX_ZOOM,
   filterBuildings,
   setFoodLabelsVisible,
+  setFoodHighlight,
+  NON_FOOD_AMENITIES,
   FOOD_DOT_LAYER_ID,
   FOOD_LABEL_LAYER_ID,
   type FoodProps,
@@ -81,7 +83,18 @@ function applyShown(map: maplibregl.Map, shown: string[]) {
   const groups = shownGroupsOf(shown);
   filterBuildings(map, groups.length === buildingGroups.length ? null : groups.flatMap((g) => g.names));
   setFoodLabelsVisible(map, shown.includes("food"));
+  setFoodHighlight(map, isFoodOnly(shown));
 }
+
+/** Chromium's beforeinstallprompt event; not in the DOM typings. */
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<unknown>;
+}
+// iOS installs only via Safari's Share menu
+const IOS_BROWSER =
+  /iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator as Navigator & { standalone?: boolean }).standalone;
+
+const isFoodOnly = (shown: string[]) => shown.length === 1 && shown[0] === "food";
 
 // Opened via a /b/<slug>/ share page: that place is the destination.
 const sharedPlace = (() => {
@@ -353,19 +366,36 @@ export default function App() {
     fromMarkerRef.current = setMarker(map, fromMarkerRef.current, from, MARKER_COLORS.start);
     toMarkerRef.current = setMarker(map, toMarkerRef.current, to, MARKER_COLORS.end);
 
-    if (!fit) return;
-    const allCoords = found.flatMap((r) => r.coordinates);
-    const bounds = allCoords.reduce(
-      (b, c) => b.extend(c as [number, number]),
-      new maplibregl.LngLatBounds(allCoords[0], allCoords[0]),
-    );
+    if (fit) fitClear(map, found.flatMap((r) => r.coordinates));
+  };
+
+  /** Fits the points in the map area the panel and the building list leave visible. */
+  const fitClear = (map: maplibregl.Map, coords: [number, number][]) => {
+    const bounds = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
     const wide = window.matchMedia(WIDE_SCREEN).matches;
-    const panelRight = wide ? (panelRef.current?.getBoundingClientRect().right ?? 0) : 0;
+    const panel = panelRef.current?.getBoundingClientRect();
+    // the panel sits beside the map when wide, over its top otherwise
+    const panelRight = wide ? (panel?.right ?? 0) : 0;
+    const panelBottom = wide ? 0 : (panel?.bottom ?? 0);
     const listLeft = wide ? document.getElementById("building-list")?.getBoundingClientRect().left : undefined;
     const listWidth = listLeft === undefined ? 0 : window.innerWidth - listLeft;
     map.fitBounds(bounds, {
-      padding: { top: FIT_PADDING, right: listWidth + FIT_PADDING, bottom: FIT_PADDING, left: panelRight + FIT_PADDING },
+      padding: { top: panelBottom + FIT_PADDING, right: listWidth + FIT_PADDING, bottom: FIT_PADDING, left: panelRight + FIT_PADDING },
     });
+  };
+
+  const changeShown = (next: string[]) => {
+    setShown(next);
+    const map = mapRef.current;
+    if (map && styleReadyRef.current) applyShown(map, next);
+  };
+  const foodOnly = isFoodOnly(shown);
+  const toggleFood = () => {
+    changeShown(foodOnly ? SHOW_ALL : ["food"]);
+    const map = mapRef.current;
+    if (foodOnly || !map) return;
+    const food = IITB_FOOD.features.filter((f) => !NON_FOOD_AMENITIES.includes(f.properties.amenity));
+    fitClear(map, food.map((f) => f.geometry.coordinates as [number, number]));
   };
 
   // Two named entry points instead of one boolean-flag parameter: a fresh user-initiated
@@ -585,6 +615,19 @@ export default function App() {
     }
   }, []);
 
+  // kept for the Install button; Chromium's own install banner still shows
+  const [installPrompt, setInstallPrompt] = React.useState<InstallPromptEvent | null>(null);
+  React.useEffect(() => {
+    const onPrompt = (e: Event) => setInstallPrompt(e as InstallPromptEvent);
+    const onInstalled = () => setInstallPrompt(null);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
   function useMyLocation() {
     setError("");
     setFromValue(MY_LOCATION_LABEL);
@@ -671,14 +714,18 @@ export default function App() {
                 Get directions
               </Button>
             ) : (
-              <Button className="flex-1" onClick={() => setDirections(true)} disabled={!toPlace}>
+              <Button className="min-w-0 flex-1" onClick={() => setDirections(true)} disabled={!toPlace}>
                 <Navigation className="size-4" />
                 Directions
               </Button>
             )}
-            <Button variant="outline" onClick={shareLink} disabled={!toPlace}>
+            <Button variant="outline" className="px-3" onClick={shareLink} disabled={!toPlace}>
               <Share2 className="size-4" />
               {linkCopied ? "Link copied" : "Share"}
+            </Button>
+            <Button variant={foodOnly ? "default" : "outline"} className="px-3" aria-pressed={foodOnly} title="Show only food places" onClick={toggleFood}>
+              <Utensils className="size-4" />
+              Food
             </Button>
             {directions && (
               <Button variant="ghost" size="icon" title="Close directions" aria-label="Close directions" onClick={exitDirections}>
@@ -794,11 +841,7 @@ export default function App() {
                   aria-labelledby="show-label"
                   className="w-full flex-wrap"
                   value={shown}
-                  onValueChange={(next) => {
-                    setShown(next);
-                    const map = mapRef.current;
-                    if (map && styleReadyRef.current) applyShown(map, next);
-                  }}
+                  onValueChange={changeShown}
                 >
                   {SHOW_OPTIONS.map((o) => (
                     <ToggleGroupItem key={o.id} value={o.id} className="flex-1">
@@ -835,9 +878,22 @@ export default function App() {
                   <Label htmlFor="editMode">Edit mode</Label>
                 </div>
               )}
-              <LabeledInput id="tileUrl" label="Tile URL template" value={tileUrlDraft} onChange={setTileUrlDraft} />
-              <LabeledInput id="glyphsUrl" label="Glyphs URL template" value={glyphsUrlDraft} onChange={setGlyphsUrlDraft} />
-              <Button onClick={applyStyleOverrides}>Apply</Button>
+              {installPrompt ? (
+                <Button variant="outline" onClick={() => installPrompt.prompt().then(() => setInstallPrompt(null))}>
+                  <Download className="size-4" />
+                  Install app
+                </Button>
+              ) : (
+                IOS_BROWSER && <p className="text-xs text-muted-foreground">To install, tap Share, then Add to Home Screen.</p>
+              )}
+              {/* developer-only overrides */}
+              {EDIT_ENABLED && (
+                <>
+                  <LabeledInput id="tileUrl" label="Tile URL template" value={tileUrlDraft} onChange={setTileUrlDraft} />
+                  <LabeledInput id="glyphsUrl" label="Glyphs URL template" value={glyphsUrlDraft} onChange={setGlyphsUrlDraft} />
+                  <Button onClick={applyStyleOverrides}>Apply</Button>
+                </>
+              )}
             </>
           )}
         </CardContent>

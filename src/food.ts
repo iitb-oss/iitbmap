@@ -1,4 +1,4 @@
-import type { CircleLayerSpecification, ExpressionSpecification, Map as MaplibreMap, SymbolLayerSpecification } from "maplibre-gl";
+import type { CircleLayerSpecification, FilterSpecification, ExpressionSpecification, Map as MaplibreMap, SymbolLayerSpecification } from "maplibre-gl";
 import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import food from "./iitb-food.json";
 import edits from "./iitb-edits.json";
@@ -22,7 +22,7 @@ export const IITB_FOOD = food as FeatureCollection<Point, FoodProps>;
 export interface MapEdits {
   /** Building label positions, by name. */
   pins: Record<string, [number, number]>;
-  /** Buildings OSM lacks. */
+  /** Buildings OSM lacks, and areas (area prop) to label. */
   added: Feature<Polygon>[];
   /** Food place positions, by name. */
   food?: Record<string, [number, number]>;
@@ -51,6 +51,7 @@ export const FOOD_DOT_LAYER_ID = "food-dot";
 export const FOOD_LABEL_LAYER_ID = "food-label";
 /** Below this zoom the dots would crowd the campus. */
 export const FOOD_MIN_ZOOM = 15;
+export const FOOD_LABEL_MIN_ZOOM = FOOD_MIN_ZOOM + 1;
 export const FOOD_HOURS_MIN_ZOOM = 17;
 
 // a smaller line under the name, or nothing
@@ -61,7 +62,7 @@ const label = (...lines: ExpressionSpecification[]): ExpressionSpecification =>
 const FLOOR = subline("floor");
 const APP = subline("app", "App: ");
 
-/** Berry: clear of the red destination pin, the yellow main roads and the building fills. */
+/** Berry: clear of the red destination pin and the building fills. */
 export const FOOD_COLORS = {
   light: { dot: "#b4407a", text: "#8a2c5c", halo: MAP_BG, ring: "#ffffff" },
   dark: { dot: "#e07aae", text: "#f0a8cb", halo: MAP_BG_DARK, ring: MAP_BG_DARK },
@@ -89,11 +90,11 @@ export function foodLayers(opts: { dark?: boolean } = {}): [CircleLayerSpecifica
       id: FOOD_LABEL_LAYER_ID,
       type: "symbol",
       source: FOOD_SOURCE_ID,
-      minzoom: FOOD_MIN_ZOOM + 1,
+      minzoom: FOOD_LABEL_MIN_ZOOM,
       layout: {
         "text-field": ["step", ["zoom"], label(FLOOR, APP), FOOD_HOURS_MIN_ZOOM, label(FLOOR, subline("hours"), APP)],
         "text-font": ["Inter Regular"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], FOOD_MIN_ZOOM + 1, 11, 18, 14],
+        "text-size": ["interpolate", ["linear"], ["zoom"], FOOD_LABEL_MIN_ZOOM, 11, 18, 14],
         "text-max-width": 8,
         // beside the dot, on whichever side is clear
         "text-variable-anchor": ["left", "right", "top", "bottom"],
@@ -113,5 +114,18 @@ export function foodLayers(opts: { dark?: boolean } = {}): [CircleLayerSpecifica
 export function setFoodLabelsVisible(map: MaplibreMap, visible: boolean): void {
   for (const id of [FOOD_DOT_LAYER_ID, FOOD_LABEL_LAYER_ID]) {
     if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+  }
+}
+
+/** Food-layer amenities the food-only view hides. */
+export const NON_FOOD_AMENITIES = ["bank"];
+
+/** Food-only view (on): food places at every zoom, other places hidden. */
+export function setFoodHighlight(map: MaplibreMap, on: boolean): void {
+  const filter = on ? ["!", ["in", ["get", "amenity"], ["literal", NON_FOOD_AMENITIES]]] : null;
+  for (const [id, minzoom] of [[FOOD_DOT_LAYER_ID, FOOD_MIN_ZOOM], [FOOD_LABEL_LAYER_ID, FOOD_LABEL_MIN_ZOOM]] as const) {
+    if (!map.getLayer(id)) continue;
+    map.setLayerZoomRange(id, on ? 0 : minzoom, 24);
+    map.setFilter(id, filter as FilterSpecification | null);
   }
 }
