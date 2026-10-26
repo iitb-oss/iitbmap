@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Feature, Polygon } from "geojson";
-import { buildingCentroid, buildingLabelLayer, BUILDINGS_SOURCE_ID, IITB_BUILDINGS, storeysByName } from "../src/buildings";
+import type { Feature, FeatureCollection, Polygon } from "geojson";
+import { applyBuildingEdits, pinnedLabels, buildingCentroid, buildingLabelLayer, BUILDINGS_SOURCE_ID, IITB_BUILDINGS, storeysByName } from "../src/buildings";
 
 describe("IITB_BUILDINGS", () => {
   it("is a non-empty FeatureCollection", () => {
@@ -28,7 +28,13 @@ describe("buildingLabelLayer", () => {
     const layer = buildingLabelLayer();
     expect(layer.source).toBe(BUILDINGS_SOURCE_ID);
     const field = layer.layout?.["text-field"] as unknown[];
-    expect(field.slice(0, 3)).toEqual(["step", ["zoom"], ["get", "name"]]); // name alone until zoomed in
+    // the short form (or name) alone until zoomed in
+    expect(field.slice(0, 3)).toEqual(["step", ["zoom"], ["coalesce", ["get", "short"], ["get", "name"]]]);
+  });
+
+  it("gives long names a short label", () => {
+    const cheme = IITB_BUILDINGS.features.find((f) => f.properties!.name === "Department of Chemical Engineering and Chemistry");
+    expect(cheme!.properties!.short).toBe("Chemical Engg & Chemistry");
   });
 
   it("uses a different text color for dark mode", () => {
@@ -44,5 +50,17 @@ describe("storeysByName", () => {
     expect(storeys.get("Hostel 17")).toBe("9 storeys");
     expect([...storeys.values()].every((s) => /^\d+\+? storeys?$/.test(s))).toBe(true);
     expect([...storeys.values()].some((s) => s.includes("+"))).toBe(true);
+  });
+});
+
+describe("applyBuildingEdits", () => {
+  it("pins labels by name and adds buildings, and re-applying replaces rather than stacks", () => {
+    const square: Polygon = { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+    const fc: FeatureCollection = { type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "A" }, geometry: square }] };
+    const added: Feature<Polygon> = { type: "Feature", properties: { name: "B", building: "yes" }, geometry: square };
+    applyBuildingEdits(fc, { pins: { A: [5, 5], B: [6, 6] }, added: [added] });
+    applyBuildingEdits(fc, { pins: { B: [7, 7] }, added: [added] });
+    expect(fc.features.map((f) => f.properties)).toEqual([{ name: "A" }, { name: "B", building: "yes", added: true, label: [7, 7] }]);
+    expect(pinnedLabels(fc).features).toEqual([{ type: "Feature", properties: { name: "B" }, geometry: { type: "Point", coordinates: [7, 7] } }]);
   });
 });

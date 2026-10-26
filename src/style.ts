@@ -7,12 +7,21 @@ import type {
   Map as MaplibreMap,
   StyleSpecification,
 } from "maplibre-gl";
+import type { FeatureCollection } from "geojson";
 import { CAMPUS_BBOX, MAP_BG, MAP_BG_DARK, MAX_ZOOM, MIN_ZOOM } from "./geo";
-import { BUILDING_LABEL_FILTER, BUILDING_LABEL_LAYER_ID, buildingLabelLayer, BUILDINGS_SOURCE_ID, IITB_BUILDINGS } from "./buildings";
+import {
+  BUILDING_KINDS, BUILDING_LABEL_FILTER, BUILDING_LABEL_LAYER_ID, buildingLabelLayer, BUILDINGS_SOURCE_ID, IITB_BUILDINGS,
+  PINNED_LABEL_LAYER_ID, pinnedLabels, PINS_SOURCE_ID,
+} from "./buildings";
 import { DEFAULT_GLYPHS_URL, DEFAULT_TILE_URL } from "./config";
 import { FOOD_SOURCE_ID, foodLayers, IITB_FOOD } from "./food";
+import boundary from "./iitb-boundary.json";
 
 export const CAMPUS_SOURCE_ID = "campus";
+export const BOUNDARY_SOURCE_ID = "boundary";
+export const BOUNDARY_LAYER_ID = "campus-boundary";
+/** The campus outline (OSM relation 8546708). */
+export const IITB_BOUNDARY = boundary as FeatureCollection;
 
 export const ATTRIBUTION =
   '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · ' +
@@ -22,26 +31,15 @@ export const ATTRIBUTION =
 export const PALETTE = {
   light: {
     green: "#c7dcb4", parking: "#d5dccf", water: "#a9cfe0", line: "#ffffff", mainRoad: "#f3d38a", path: "#a39e90",
-    building: "#b9b3a6", academic: "#c98a5e", hostel: "#7d8fbf", residence: "#c9c2b2",
+    building: "#b9b3a6", academic: "#c98a5e", hostel: "#7d8fbf", residence: "#c9c2b2", boundary: "#1d5fd6",
   },
   dark: {
     green: "#263a29", parking: "#2a332c", water: "#1d3b4c", line: "#3a443c", mainRoad: "#8c6f34", path: "#5c655c",
-    building: "#45433d", academic: "#b07450", hostel: "#5e6fa0", residence: "#4a4a42",
+    building: "#45433d", academic: "#b07450", hostel: "#5e6fa0", residence: "#4a4a42", boundary: "#f2c94c",
   },
 } as const;
 
-/** OSM building values per color group; anything else is "building". */
-export const BUILDING_KINDS = {
-  hostel: ["dormitory"],
-  academic: ["university", "college", "school", "civic", "hospital"],
-  residence: ["apartments", "residential", "bungalow", "house"],
-} as const;
-
-export type BuildingKind = keyof typeof BUILDING_KINDS | "building";
-export function buildingKind(tag: unknown): BuildingKind {
-  for (const [kind, tags] of Object.entries(BUILDING_KINDS)) if ((tags as readonly unknown[]).includes(tag)) return kind as BuildingKind;
-  return "building";
-}
+export { BUILDING_KINDS, buildingKind, type BuildingKind } from "./buildings";
 
 export const MAIN_ROADS = ["motorway", "trunk", "primary", "primary_link", "secondary", "tertiary"];
 export const PATHS = ["footway", "path", "steps", "track", "cycleway", "pedestrian"];
@@ -127,6 +125,32 @@ export function campusLayers(dark = false): (FillLayerSpecification | LineLayerS
   ];
 }
 
+/** Campus outline: blue on the light theme, yellow on the dark one. */
+export function boundaryLayer(dark = false): LineLayerSpecification {
+  const c = dark ? PALETTE.dark : PALETTE.light;
+  return {
+    id: BOUNDARY_LAYER_ID, type: "line", source: BOUNDARY_SOURCE_ID,
+    layout: { "line-join": "round" },
+    paint: {
+      "line-color": c.boundary,
+      "line-width": ["interpolate", ["linear"], ["zoom"], MIN_ZOOM, 1.5, MAX_ZOOM, 4],
+      "line-opacity": 0.85,
+    },
+  };
+}
+
+export const ADDED_BUILDINGS_LAYER_ID = "buildings-added";
+
+/** Buildings the tiles lack (IITB_EDITS) or color wrongly (recolor, from fetch-buildings). */
+export function addedBuildingsLayer(dark = false): FillLayerSpecification {
+  const c = dark ? PALETTE.dark : PALETTE.light;
+  return {
+    id: ADDED_BUILDINGS_LAYER_ID, type: "fill", source: BUILDINGS_SOURCE_ID,
+    filter: ["any", ["has", "added"], ["has", "recolor"]],
+    paint: { "fill-color": buildingColor(c), "fill-outline-color": c.line, "fill-opacity": BUILDING_OPACITY },
+  };
+}
+
 export const BUILDINGS_3D_LAYER_ID = "buildings-3d";
 /** One storey, in metres. */
 export const STOREY_M = 3.2;
@@ -157,7 +181,11 @@ export function setBuildings3d(map: MaplibreMap, on: boolean): void {
 /** Label and extrude only these building names; null shows all. */
 export function filterBuildings(map: MaplibreMap, names: string[] | null): void {
   const only: ExpressionSpecification | null = names && ["in", ["get", "name"], ["literal", names]];
-  for (const [id, base] of [[BUILDING_LABEL_LAYER_ID, BUILDING_LABEL_FILTER], [BUILDINGS_3D_LAYER_ID, BUILDINGS_3D_FILTER]] as const) {
+  for (const [id, base] of [
+    [BUILDING_LABEL_LAYER_ID, BUILDING_LABEL_FILTER],
+    [PINNED_LABEL_LAYER_ID, BUILDING_LABEL_FILTER],
+    [BUILDINGS_3D_LAYER_ID, BUILDINGS_3D_FILTER],
+  ] as const) {
     if (map.getLayer(id)) map.setFilter(id, only ? ["all", base, only] : base);
   }
 }
@@ -184,8 +212,12 @@ function themedLayers(dark: boolean): LayerSpecification[] {
   return [
     { id: "bg", type: "background", paint: { "background-color": dark ? MAP_BG_DARK : MAP_BG } },
     ...campusLayers(dark),
+    addedBuildingsLayer(dark),
+    boundaryLayer(dark),
     buildings3dLayer(dark),
     buildingLabelLayer({ dark }),
+    // above unpinned labels, so a pinned label wins collisions
+    buildingLabelLayer({ dark, pinned: true }),
     // above building labels, so food names win label collisions
     ...foodLayers({ dark }),
   ];
@@ -206,6 +238,8 @@ export function getCampusStyle(opts: CampusStyleOptions = {}): StyleSpecificatio
         attribution: ATTRIBUTION,
       },
       [BUILDINGS_SOURCE_ID]: { type: "geojson", data: IITB_BUILDINGS },
+      [BOUNDARY_SOURCE_ID]: { type: "geojson", data: IITB_BOUNDARY },
+      [PINS_SOURCE_ID]: { type: "geojson", data: pinnedLabels() },
       [FOOD_SOURCE_ID]: { type: "geojson", data: IITB_FOOD },
     },
     layers: themedLayers(dark),

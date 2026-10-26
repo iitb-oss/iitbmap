@@ -5,11 +5,19 @@ export type RoutingProfile = "walk" | "drive";
 export interface Route {
   coordinates: [number, number][];
   distanceMeters: number;
+  /** Street name of each segment (coordinates[i] -> coordinates[i + 1]), null where unnamed. */
+  streets: (string | null)[];
+  /** Indices into coordinates of the junctions passed; turns happen only there. */
+  junctions: number[];
 }
+
+/** [from, to, metres, index into names or -1, road shape between the two nodes]. */
+type GraphEdge = [number, number, number, number, [number, number][]];
 
 interface ProfileGraph {
   nodes: [number, number][];
-  edges: [number, number, number][];
+  edges: GraphEdge[];
+  names: string[];
 }
 
 const RAW_GRAPHS = graphs as Record<RoutingProfile, ProfileGraph>;
@@ -26,9 +34,17 @@ export function haversineMeters(a: [number, number], b: [number, number]): numbe
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
+interface Neighbor {
+  to: number;
+  weight: number;
+  name: string | null;
+  /** Points strictly between the two nodes, in travel order. */
+  shape: [number, number][];
+}
+
 interface Adjacency {
   nodes: [number, number][];
-  neighbors: { to: number; weight: number }[][];
+  neighbors: Neighbor[][];
 }
 
 const adjacencyCache = new Map<RoutingProfile, Adjacency>();
@@ -38,10 +54,11 @@ function getAdjacency(profile: RoutingProfile): Adjacency {
   if (adjacency) return adjacency;
 
   const graph = RAW_GRAPHS[profile];
-  const neighbors: { to: number; weight: number }[][] = graph.nodes.map(() => []);
-  for (const [u, v, weight] of graph.edges) {
-    neighbors[u].push({ to: v, weight });
-    if (profile === "walk") neighbors[v].push({ to: u, weight });
+  const neighbors: Neighbor[][] = graph.nodes.map(() => []);
+  for (const [u, v, weight, n, shape] of graph.edges) {
+    const name = graph.names[n] ?? null;
+    neighbors[u].push({ to: v, weight, name, shape });
+    if (profile === "walk") neighbors[v].push({ to: u, weight, name, shape: [...shape].reverse() });
   }
   adjacency = { nodes: graph.nodes, neighbors };
   adjacencyCache.set(profile, adjacency);
@@ -108,12 +125,16 @@ function dijkstra(
   return { path, distance: dist[target] };
 }
 
+/** Cheapest edge u -> v; Dijkstra takes it over any parallel one. */
+function edgeBetween(adjacency: Adjacency, u: number, v: number): Neighbor {
+  let best = adjacency.neighbors[u][0];
+  for (const n of adjacency.neighbors[u]) if (n.to === v && (best.to !== v || n.weight < best.weight)) best = n;
+  return best;
+}
+
 function pathDistance(adjacency: Adjacency, path: number[]): number {
   let total = 0;
-  for (let i = 1; i < path.length; i++) {
-    const edge = adjacency.neighbors[path[i - 1]].find((n) => n.to === path[i]);
-    total += edge?.weight ?? 0;
-  }
+  for (let i = 1; i < path.length; i++) total += edgeBetween(adjacency, path[i - 1], path[i]).weight;
   return total;
 }
 
@@ -161,11 +182,94 @@ function kShortestPaths(adjacency: Adjacency, source: number, target: number, k:
 }
 
 function toRoute(adjacency: Adjacency, result: PathResult, from: [number, number], to: [number, number]): Route {
-  const coordinates = result.path.map((i) => adjacency.nodes[i]);
-  // edge weights follow road curves the graph drops, so they give the distance
-  const distanceMeters =
-    haversineMeters(from, coordinates[0]) + result.distance + haversineMeters(coordinates[coordinates.length - 1], to);
-  return { coordinates: [from, ...coordinates, to], distanceMeters };
+  const { nodes } = adjacency;
+  const { path } = result;
+  const coordinates: [number, number][] = [from, nodes[path[0]]];
+  const streets: (string | null)[] = [null];
+  const junctions = [1];
+  for (let i = 1; i < path.length; i++) {
+    const edge = edgeBetween(adjacency, path[i - 1], path[i]);
+    for (const p of [...edge.shape, nodes[path[i]]]) {
+      coordinates.push(p);
+      streets.push(edge.name);
+    }
+    junctions.push(coordinates.length - 1);
+  }
+  coordinates.push(to);
+  streets.push(null);
+  // edge weights follow road curves
+  const distanceMeters = haversineMeters(from, nodes[path[0]]) + result.distance + haversineMeters(nodes[path[path.length - 1]], to);
+  return { coordinates, distanceMeters, streets, junctions };
+}
+
+export interface RouteStep {
+  /** "Turn left onto Hillside Road", "Head north", "Arrive". */
+  text: string;
+  /** Metres covered by this step, before the next instruction. */
+  distanceMeters: number;
+  /** Where the step starts, [lng, lat]. */
+  at: [number, number];
+}
+
+function bearing(a: [number, number], b: [number, number]): number {
+  const [lng1, lat1, lng2, lat2] = [a[0], a[1], b[0], b[1]].map((d) => (d * Math.PI) / 180);
+  const y = Math.sin(lng2 - lng1) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lng2 - lng1);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+const COMPASS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+/** Smallest announced bend, in degrees. */
+const STRAIGHT_DEG = 30;
+/** How far along the route to look either side of a junction for its heading, in metres. */
+const LOOK_M = 15;
+
+function turnText(delta: number): string {
+  const side = delta > 0 ? "right" : "left";
+  const a = Math.abs(delta);
+  if (a < 60) return `Bear ${side}`;
+  if (a < 135) return `Turn ${side}`;
+  if (a < 165) return `Turn sharp ${side}`;
+  return "Make a U-turn";
+}
+
+/** Turn-by-turn instructions, one per junction where the route bends past STRAIGHT_DEG or changes street. */
+export function routeSteps(route: Route): RouteStep[] {
+  const pts = route.coordinates;
+  // cumulative metres along the route at each point
+  const along = [0];
+  for (let i = 1; i < pts.length; i++) along.push(along[i - 1] + haversineMeters(pts[i - 1], pts[i]));
+  // ponytail: scaled to the routed total; chords miss small wiggles
+  const scale = along[pts.length - 1] > 0 ? route.distanceMeters / along[pts.length - 1] : 1;
+  // the point LOOK_M away from pts[i] (dir -1 back, +1 ahead), or the route's end
+  const reach = (i: number, dir: 1 | -1) => {
+    let j = i;
+    while (j + dir >= 0 && j + dir < pts.length && Math.abs(along[j] - along[i]) < LOOK_M) j += dir;
+    return pts[j];
+  };
+
+  // first heading is the street's; the snap onto it can point anywhere
+  const first = route.junctions[0];
+  const b0 = bearing(pts[first], reach(first, 1));
+  const steps: RouteStep[] = [
+    { text: `Head ${COMPASS[Math.round(b0 / 45) % 8]}${route.streets[first] ? ` on ${route.streets[first]}` : ""}`, distanceMeters: 0, at: pts[first] },
+  ];
+  let stepStart = 0;
+  for (const j of route.junctions.slice(1)) {
+    if (j >= pts.length - 1) break;
+    const delta = ((bearing(pts[j], reach(j, 1)) - bearing(reach(j, -1), pts[j]) + 540) % 360) - 180;
+    const next = route.streets[j];
+    let text: string | null = null;
+    if (Math.abs(delta) >= STRAIGHT_DEG) text = `${turnText(delta)}${next ? ` onto ${next}` : ""}`;
+    else if (next && next !== route.streets[j - 1]) text = `Continue onto ${next}`;
+    if (!text) continue;
+    steps[steps.length - 1].distanceMeters = (along[j] - along[stepStart]) * scale;
+    steps.push({ text, distanceMeters: 0, at: pts[j] });
+    stepStart = j;
+  }
+  steps[steps.length - 1].distanceMeters = (along[pts.length - 1] - along[stepStart]) * scale;
+  steps.push({ text: "Arrive", distanceMeters: 0, at: pts[pts.length - 1] });
+  return steps;
 }
 
 export function findRoute(from: [number, number], to: [number, number], profile: RoutingProfile = "walk"): Route | null {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findRoute, findRoutes } from "../src/routing";
+import { findRoute, findRoutes, routeSteps } from "../src/routing";
 import { buildingCentroid, IITB_BUILDINGS } from "../src/buildings";
 import type { Feature, Polygon } from "geojson";
 
@@ -55,5 +55,55 @@ describe("findRoutes", () => {
     const single = findRoute(from, to, "walk");
     const [first] = findRoutes(from, to, "walk", 1);
     expect(single).toEqual(first);
+  });
+});
+
+describe("routeSteps", () => {
+  const route = (coordinates: [number, number][], streets: (string | null)[], distanceMeters = 0) => ({
+    coordinates, streets, distanceMeters, junctions: coordinates.map((_, i) => i).slice(0, -1),
+  });
+  const at = (name: string): [number, number] => {
+    const f = IITB_BUILDINGS.features.find((f) => f.properties!.name === name)!;
+    return f.geometry.type === "Point" ? (f.geometry.coordinates as [number, number]) : buildingCentroid(f as Feature<Polygon>);
+  };
+  const texts = (r: ReturnType<typeof findRoute>) => routeSteps(r!).map((s) => s.text);
+
+  it("turns left at a right-angle junction and names the new street", () => {
+    // north ~110 m, then west ~105 m
+    const steps = routeSteps(route([[72.91, 19.13], [72.91, 19.131], [72.909, 19.131]], ["A Road", "B Road"], 215));
+    expect(steps.map((s) => s.text)).toEqual(["Head north on A Road", "Turn left onto B Road", "Arrive"]);
+    expect(steps[0].distanceMeters + steps[1].distanceMeters).toBeCloseTo(215);
+  });
+
+  it("turns right the other way round", () => {
+    const steps = routeSteps(route([[72.91, 19.13], [72.91, 19.131], [72.911, 19.131]], [null, null]));
+    expect(steps.map((s) => s.text)).toEqual(["Head north", "Turn right", "Arrive"]);
+  });
+
+  it("keeps gentle bends in one step and announces a renamed street", () => {
+    const r = route([[72.91, 19.13], [72.9101, 19.131], [72.9102, 19.132]], ["A Road", "C Road"]);
+    expect(routeSteps(r).map((s) => s.text)).toEqual(["Head north on A Road", "Continue onto C Road", "Arrive"]);
+  });
+
+  it("walks from the Main Gate to the Research Park up Main Gate Road", () => {
+    const r = findRoute(at("Main Gate (Gate 2)"), at("ASPIRE - IITB Research Park"), "walk")!;
+    expect(texts(r)).toEqual(["Head northwest on Main Gate Road", "Turn right", "Bear left", "Arrive"]);
+    const steps = routeSteps(r);
+    expect(steps[0].distanceMeters).toBeGreaterThan(1500); // Main Gate Road runs to the hostels
+    expect(steps.reduce((a, s) => a + s.distanceMeters, 0)).toBeCloseTo(r.distanceMeters);
+  });
+
+  it("drives from the Main Gate to the Research Park round the outside road", () => {
+    const r = findRoute(at("Main Gate (Gate 2)"), at("ASPIRE - IITB Research Park"), "drive");
+    expect(texts(r)).toEqual(["Head south", "Turn right onto Adi Sankaracharya Marg", "Bear right", "Arrive"]);
+  });
+
+  it("starts every step on the route and ends with Arrive", () => {
+    for (const profile of ["walk", "drive"] as const) {
+      const r = findRoute(from, to, profile)!;
+      const steps = routeSteps(r);
+      expect(steps.at(-1)!.text).toBe("Arrive");
+      for (const s of steps) expect(r.coordinates).toContainEqual(s.at);
+    }
   });
 });

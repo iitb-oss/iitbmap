@@ -1,10 +1,55 @@
 import type { ExpressionSpecification, Map as MaplibreMap, SymbolLayerSpecification } from "maplibre-gl";
-import type { Feature, FeatureCollection, Polygon } from "geojson";
+import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import buildings from "./iitb-buildings.json";
 import { MAP_BG, MAP_BG_DARK, MIN_ZOOM } from "./geo";
-import { FOOD_NAMES } from "./food";
+import { applyFoodEdits, FOOD_NAMES, IITB_EDITS, IITB_FOOD, type MapEdits } from "./food";
 
 export const IITB_BUILDINGS = buildings as FeatureCollection;
+
+/** OSM building values per color group; anything else is "building". */
+export const BUILDING_KINDS = {
+  hostel: ["dormitory"],
+  academic: ["university", "college", "school", "civic", "hospital"],
+  residence: ["apartments", "residential", "bungalow", "house"],
+} as const;
+
+export type BuildingKind = keyof typeof BUILDING_KINDS | "building";
+export function buildingKind(tag: unknown): BuildingKind {
+  for (const [kind, tags] of Object.entries(BUILDING_KINDS)) if ((tags as readonly unknown[]).includes(tag)) return kind as BuildingKind;
+  return "building";
+}
+
+export { IITB_EDITS };
+
+/** Idempotent; added buildings get an added prop, pinned ones a label prop. */
+export function applyBuildingEdits(fc: FeatureCollection, e: MapEdits): void {
+  fc.features = fc.features.filter((f) => !f.properties?.added);
+  fc.features.push(...e.added.map((f) => ({ ...f, properties: { ...f.properties, added: true } })));
+  for (const { properties: p } of fc.features) {
+    if (!p) continue;
+    const at = e.pins[p.name];
+    if (at) p.label = at;
+    else delete p.label;
+  }
+}
+applyBuildingEdits(IITB_BUILDINGS, IITB_EDITS);
+
+/** Applies edits to the bundled buildings and food places in place. */
+export function applyMapEdits(e: MapEdits): void {
+  applyBuildingEdits(IITB_BUILDINGS, e);
+  applyFoodEdits(IITB_FOOD, e);
+}
+
+/** One point per pinned building name, for the pinned label layer. */
+export function pinnedLabels(fc: FeatureCollection = IITB_BUILDINGS): FeatureCollection<Point> {
+  const byName = new Map<string, Feature<Point>>();
+  for (const { properties: p } of fc.features) {
+    if (!p?.label) continue;
+    const props = { name: p.name, ...(p.storeys && { storeys: p.storeys }), ...(p.short && { short: p.short }) };
+    byName.set(p.name, { type: "Feature", properties: props, geometry: { type: "Point", coordinates: p.label } });
+  }
+  return { type: "FeatureCollection", features: [...byName.values()] };
+}
 
 /** From this zoom labels add the storey count as a smaller second line. */
 export const STOREYS_MIN_ZOOM = 17;
@@ -21,26 +66,30 @@ export function storeysByName(): Map<string, string> {
 
 export const BUILDINGS_SOURCE_ID = "buildings";
 export const BUILDING_LABEL_LAYER_ID = "building-label";
+export const PINS_SOURCE_ID = "building-pins";
+export const PINNED_LABEL_LAYER_ID = "building-label-pinned";
 
 // Ink on a land-colored halo, so labels read over buildings and lawns alike.
 const LABEL_COLOR = { light: "#1d2620", dark: "#e3e9e0" } as const;
 const LABEL_HALO = { light: MAP_BG, dark: MAP_BG_DARK } as const;
 
-// a canteen or mess building is labelled by the food layer instead
-export const BUILDING_LABEL_FILTER: ExpressionSpecification = ["!", ["in", ["get", "name"], ["literal", FOOD_NAMES]]];
+// canteen buildings are labelled by the food layer, pinned ones by the pinned layer
+export const BUILDING_LABEL_FILTER: ExpressionSpecification = [
+  "all", ["!", ["in", ["get", "name"], ["literal", FOOD_NAMES]]], ["!", ["has", "label"]],
+];
 
-/** Requires a configured glyph URL because the basemap supplies none. */
-export function buildingLabelLayer(opts: { dark?: boolean } = {}): SymbolLayerSpecification {
+/** Takes glyphs from the style's glyph URL. pinned labels the pinnedLabels() points. */
+export function buildingLabelLayer(opts: { dark?: boolean; pinned?: boolean } = {}): SymbolLayerSpecification {
   const theme = opts.dark ? "dark" : "light";
   return {
-    id: BUILDING_LABEL_LAYER_ID,
+    id: opts.pinned ? PINNED_LABEL_LAYER_ID : BUILDING_LABEL_LAYER_ID,
     type: "symbol",
-    source: BUILDINGS_SOURCE_ID,
+    source: opts.pinned ? PINS_SOURCE_ID : BUILDINGS_SOURCE_ID,
     minzoom: MIN_ZOOM,
     filter: BUILDING_LABEL_FILTER,
     layout: {
       "text-field": [
-        "step", ["zoom"], ["get", "name"],
+        "step", ["zoom"], ["coalesce", ["get", "short"], ["get", "name"]],
         STOREYS_MIN_ZOOM, ["case", ["has", "storeys"],
           ["format", ["get", "name"], {}, "\n", {}, ["get", "storeys"], { "font-scale": 0.8 }],
           ["get", "name"]],
@@ -49,6 +98,13 @@ export function buildingLabelLayer(opts: { dark?: boolean } = {}): SymbolLayerSp
       "text-size": ["interpolate", ["linear"], ["zoom"], MIN_ZOOM, 11, 18, 16],
       "text-max-width": 8,
       "symbol-avoid-edges": true,
+      // housing blocks yield to everything else
+      "symbol-sort-key": ["match", ["get", "building"], [...BUILDING_KINDS.residence], 1, 0],
+      // a label blocked on the centroid moves above or below the building
+      "text-variable-anchor": ["center", "top", "bottom"],
+      "text-radial-offset": 0.6,
+      // a hand-placed label always shows; unpinned labels still make way for it
+      ...(opts.pinned && { "text-allow-overlap": true }),
     },
     paint: {
       "text-color": LABEL_COLOR[theme],
@@ -60,8 +116,8 @@ export function buildingLabelLayer(opts: { dark?: boolean } = {}): SymbolLayerSp
 }
 
 export function setBuildingLabelsVisible(map: MaplibreMap, visible: boolean): void {
-  if (map.getLayer(BUILDING_LABEL_LAYER_ID)) {
-    map.setLayoutProperty(BUILDING_LABEL_LAYER_ID, "visibility", visible ? "visible" : "none");
+  for (const id of [BUILDING_LABEL_LAYER_ID, PINNED_LABEL_LAYER_ID]) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
   }
 }
 

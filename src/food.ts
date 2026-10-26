@@ -1,6 +1,7 @@
 import type { CircleLayerSpecification, ExpressionSpecification, Map as MaplibreMap, SymbolLayerSpecification } from "maplibre-gl";
-import type { FeatureCollection, Point } from "geojson";
+import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import food from "./iitb-food.json";
+import edits from "./iitb-edits.json";
 import { MAP_BG, MAP_BG_DARK } from "./geo";
 
 export interface FoodProps {
@@ -16,6 +17,34 @@ export interface FoodProps {
 
 /** Named food places on campus, as points. */
 export const IITB_FOOD = food as FeatureCollection<Point, FoodProps>;
+
+/** Hand edits over the OSM snapshot; the fetch scripts leave src/iitb-edits.json alone. */
+export interface MapEdits {
+  /** Building label positions, by name. */
+  pins: Record<string, [number, number]>;
+  /** Buildings OSM lacks. */
+  added: Feature<Polygon>[];
+  /** Food place positions, by name. */
+  food?: Record<string, [number, number]>;
+}
+
+/** Idempotent; a moved place keeps its snapshot position in original, for un-moving. */
+export function applyFoodEdits(fc: FeatureCollection<Point>, e: MapEdits): void {
+  for (const f of fc.features) {
+    const p = f.properties as Record<string, unknown>;
+    const at = e.food?.[p.name as string];
+    if (at) {
+      p.original ??= f.geometry.coordinates;
+      f.geometry.coordinates = at;
+    } else if (p.original) {
+      f.geometry.coordinates = p.original as number[];
+      delete p.original;
+    }
+  }
+}
+// JSON types pins as number[]
+export const IITB_EDITS = edits as unknown as MapEdits;
+applyFoodEdits(IITB_FOOD, IITB_EDITS);
 
 export const FOOD_SOURCE_ID = "food";
 export const FOOD_DOT_LAYER_ID = "food-dot";

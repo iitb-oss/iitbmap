@@ -20,7 +20,13 @@ import {
   FOOD_SOURCE_ID,
   storeysByName,
   findRoutes,
+  routeSteps,
   inCampusBbox,
+  applyMapEdits,
+  pinnedLabels,
+  PINS_SOURCE_ID,
+  IITB_EDITS,
+  type MapEdits,
   type Route,
   type RoutingProfile,
 } from "../../src/index";
@@ -29,6 +35,9 @@ import { buildingPath, buildingSlug, slugFromPathname } from "@/lib/building-url
 import { encodeDigipin } from "@/lib/digipin";
 import { foodPopup } from "@/lib/food-popup";
 import { applySheet } from "@/lib/sheet";
+import { EDIT_ENABLED, downloadEdits, loadEdits, saveEdits } from "@/lib/edits";
+import { drawDraft, installEditor } from "@/lib/editor";
+import { EditPanel } from "@/components/edit-panel";
 import { MARKER_COLORS, MY_LOCATION_LABEL, PLACE_NAMES, findPlaceCentroid, formatRouteInfo, resolvePlace } from "@/lib/places";
 import { haversineMeters } from "../../src/routing";
 
@@ -58,6 +67,15 @@ const SHOW_ALL = SHOW_OPTIONS.map((o) => o.id);
 const shownGroupsOf = (shown: string[]) => buildingGroups.filter((g) => shown.includes(g.id));
 const PITCH_3D = 55;
 const sheetApplied = applySheet(IITB_BUILDINGS, IITB_FOOD);
+
+/** Pushes the in-place-patched collections to the map after the sheet or an edit. */
+function refreshBuildingSources(map: maplibregl.Map | null) {
+  for (const [id, data] of [[BUILDINGS_SOURCE_ID, IITB_BUILDINGS], [FOOD_SOURCE_ID, IITB_FOOD], [PINS_SOURCE_ID, pinnedLabels()]] as const) {
+    (map?.getSource(id) as maplibregl.GeoJSONSource | undefined)?.setData(data);
+  }
+}
+
+const askName = () => window.prompt("Building name")?.trim() || null;
 
 function applyShown(map: maplibregl.Map, shown: string[]) {
   const groups = shownGroupsOf(shown);
@@ -211,7 +229,7 @@ export default function App() {
   const [shown, setShown] = React.useState(SHOW_ALL);
   const [buildings3d, setBuildings3dOn] = React.useState(true);
   const [tileUrlDraft, setTileUrlDraft] = React.useState(() =>
-    import.meta.env.DEV ? `${window.location.origin}/tiles/{z}/{x}/{y}.pbf` : "",
+    import.meta.env.DEV && import.meta.env.VITE_LOCAL_TILES ? `${window.location.origin}/tiles/{z}/{x}/{y}.pbf` : "",
   );
   const [glyphsUrlDraft, setGlyphsUrlDraft] = React.useState(() => (import.meta.env.DEV ? "/fonts/{fontstack}/{range}.pbf" : ""));
 
@@ -220,10 +238,46 @@ export default function App() {
   const [myLocation, setMyLocation] = React.useState<[number, number] | null>(null);
   const [profile, setProfile] = React.useState<RoutingProfile>("walk");
   const [routeState, setRouteState] = React.useState<RouteState>({ routes: [], selectedIndex: 0 });
+  const selectedRoute = routeState.routes[routeState.selectedIndex];
+  const steps = React.useMemo(() => (selectedRoute ? routeSteps(selectedRoute) : []), [selectedRoute]);
   const [error, setError] = React.useState("");
   const [linkCopied, setLinkCopied] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [directions, setDirections] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
+  const [drawing, setDrawing] = React.useState<[number, number][] | null>(null);
+  const [edits, setEdits] = React.useState<MapEdits>(() => (EDIT_ENABLED ? loadEdits() : IITB_EDITS));
+  const [editHistory, setEditHistory] = React.useState<MapEdits[]>([]);
+
+  const commitEdits = (next: MapEdits) => {
+    setEditHistory((h) => [...h, edits]);
+    setEdits(next);
+    saveEdits(next);
+  };
+  const undoEdit = () => {
+    const prev = editHistory.at(-1);
+    if (!prev) return;
+    setEditHistory((h) => h.slice(0, -1));
+    setEdits(prev);
+    saveEdits(prev);
+  };
+  const addBuilding = (geometry: GeoJSON.Polygon, building: string) => {
+    const name = askName();
+    if (name) commitEdits({ ...edits, added: [...edits.added, { type: "Feature", properties: { name, building }, geometry }] });
+  };
+  const pinLabel = (name: string, at: [number, number] | null) => {
+    const { [name]: _, ...pins } = edits.pins;
+    commitEdits({ ...edits, pins: at ? { ...pins, [name]: at } : pins });
+  };
+  const moveFood = (name: string, at: [number, number] | null) => {
+    const { [name]: _, ...food } = edits.food ?? {};
+    commitEdits({ ...edits, food: at ? { ...food, [name]: at } : food });
+  };
+  const finishDrawing = () => {
+    if (!drawing || drawing.length < 3) return;
+    addBuilding({ type: "Polygon", coordinates: [[...drawing, drawing[0]]] }, "yes");
+    setDrawing(null);
+  };
 
   const applyStyleOverrides = () => {
     const map = mapRef.current;
@@ -337,7 +391,7 @@ export default function App() {
 
   // Bridges into MapLibre's persistent `style.load` listener, which is registered once
   // and would otherwise only ever see the state from the render it was created in.
-  const latest = { fromValue, toValue, routeState, shown, buildings3d, recomputeRoute, dark };
+  const latest = { fromValue, toValue, routeState, shown, buildings3d, recomputeRoute, dark, editing, drawing, pinLabel, addBuilding, moveFood };
   const latestRef = React.useRef(latest);
   latestRef.current = latest;
 
@@ -366,7 +420,7 @@ export default function App() {
     for (const id of [FOOD_DOT_LAYER_ID, FOOD_LABEL_LAYER_ID]) {
       map.on("click", id, (e) => {
         const f = e.features?.[0];
-        if (!f || f.geometry.type !== "Point") return;
+        if (!f || f.geometry.type !== "Point" || latestRef.current.editing) return; // edit mode drags it
         const props = f.properties as FoodProps;
         setToValue(props.name); // the Share button then copies its link
         new maplibregl.Popup({ maxWidth: "240px", focusAfterOpen: false })
@@ -376,6 +430,15 @@ export default function App() {
       });
       map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
       map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
+    }
+    if (EDIT_ENABLED) {
+      installEditor(map, {
+        state: () => latestRef.current,
+        pin: (name, at) => latestRef.current.pinLabel(name, at),
+        moveFood: (name, at) => latestRef.current.moveFood(name, at),
+        addVertex: (at) => setDrawing((d) => [...(d ?? []), at]),
+        nameBuilding: (geometry, building) => latestRef.current.addBuilding(geometry, building),
+      });
     }
     // narrow screens open compact attribution expanded over the map; collapse it after MapLibre's resize handler
     const collapseAttribution = () => {
@@ -414,6 +477,7 @@ export default function App() {
       applyShown(map, current.shown);
       setBuildings3d(map, current.buildings3d);
       setCampusTheme(map, current.dark); // the theme may have changed while the style loaded
+      if (current.drawing) drawDraft(map, current.drawing);
       if (current.fromValue.trim() && current.toValue.trim() && current.routeState.routes.length === 0) {
         current.recomputeRoute();
       } else if (current.routeState.routes.length > 0) {
@@ -435,12 +499,22 @@ export default function App() {
   const [buildingStoreys, setBuildingStoreys] = React.useState(storeysByName);
   React.useEffect(() => {
     sheetApplied.then(() => {
-      for (const [id, data] of [[BUILDINGS_SOURCE_ID, IITB_BUILDINGS], [FOOD_SOURCE_ID, IITB_FOOD]] as const) {
-        (mapRef.current?.getSource(id) as maplibregl.GeoJSONSource | undefined)?.setData(data);
-      }
+      refreshBuildingSources(mapRef.current);
       setBuildingStoreys(storeysByName());
     }, (err) => console.warn("iitbmap: sheet not loaded", err));
   }, []);
+
+  React.useEffect(() => {
+    if (!EDIT_ENABLED) return;
+    applyMapEdits(edits);
+    refreshBuildingSources(mapRef.current);
+    setBuildingStoreys(storeysByName());
+  }, [edits]);
+
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (map && styleReadyRef.current) drawDraft(map, drawing);
+  }, [drawing]);
 
   // Route layer sync: the single place that draws `routeState` onto the map in response
   // to state changes. `style.load` separately redraws the same way after a style reload
@@ -529,6 +603,11 @@ export default function App() {
         }}
       >
         <CardContent className="flex flex-col gap-3 p-0">
+          <div className="flex items-center gap-2">
+            {/* blue on transparent; the white backing keeps it legible in dark mode */}
+            <img src={`${import.meta.env.BASE_URL}iitb-logo.svg`} alt="IIT Bombay logo" className="size-9 shrink-0 rounded-md bg-white p-0.5" />
+            <span className="text-sm font-semibold leading-tight">IIT Bombay Campus Map</span>
+          </div>
           {directions && (
             <div className="flex items-center gap-2">
               <BuildingCombobox
@@ -634,6 +713,50 @@ export default function App() {
             </ToggleGroup>
           )}
 
+          {steps.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted-foreground">Step-by-step</summary>
+              <ol className="mt-1 flex max-h-64 flex-col overflow-y-auto">
+                {steps.map((step, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="flex w-full justify-between gap-2 rounded px-1 py-1 text-left hover:bg-accent pointer-coarse:min-h-11"
+                      onClick={() => mapRef.current?.flyTo({ center: step.at, zoom: Math.max(mapRef.current.getZoom(), 17) })}
+                    >
+                      <span>{step.text}</span>
+                      {step.distanceMeters >= 1 && (
+                        <span className="shrink-0 text-muted-foreground">{Math.round(step.distanceMeters)} m</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+
+          {editing && (
+            <EditPanel
+              edits={edits}
+              drawing={drawing}
+              canUndo={editHistory.length > 0}
+              onDraw={() => setDrawing([])}
+              onFinish={finishDrawing}
+              onCancel={() => setDrawing(null)}
+              onUndo={undoEdit}
+              onExport={() => downloadEdits(edits)}
+              onDiscard={() => {
+                saveEdits(null);
+                setEdits(IITB_EDITS);
+                setEditHistory([]);
+              }}
+              onClose={() => {
+                setEditing(false);
+                setDrawing(null);
+              }}
+            />
+          )}
+
           {settingsOpen && (
             <>
               <Separator />
@@ -699,6 +822,19 @@ export default function App() {
                 />
                 <Label htmlFor="buildings3d">3D buildings</Label>
               </div>
+              {EDIT_ENABLED && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="editMode"
+                    checked={editing}
+                    onCheckedChange={(v) => {
+                      setEditing(v === true);
+                      setDrawing(null);
+                    }}
+                  />
+                  <Label htmlFor="editMode">Edit mode</Label>
+                </div>
+              )}
               <LabeledInput id="tileUrl" label="Tile URL template" value={tileUrlDraft} onChange={setTileUrlDraft} />
               <LabeledInput id="glyphsUrl" label="Glyphs URL template" value={glyphsUrlDraft} onChange={setGlyphsUrlDraft} />
               <Button onClick={applyStyleOverrides}>Apply</Button>

@@ -5,6 +5,12 @@ export {
   getCampusStyle,
   mergeCampusLayers,
   setCampusTheme,
+  BOUNDARY_SOURCE_ID,
+  BOUNDARY_LAYER_ID,
+  IITB_BOUNDARY,
+  boundaryLayer,
+  ADDED_BUILDINGS_LAYER_ID,
+  addedBuildingsLayer,
   BUILDINGS_3D_LAYER_ID,
   STOREY_M,
   buildings3dLayer,
@@ -20,6 +26,12 @@ export {
   IITB_BUILDINGS,
   BUILDINGS_SOURCE_ID,
   BUILDING_LABEL_LAYER_ID,
+  PINS_SOURCE_ID,
+  PINNED_LABEL_LAYER_ID,
+  IITB_EDITS,
+  applyBuildingEdits,
+  applyMapEdits,
+  pinnedLabels,
   buildingLabelLayer,
   setBuildingLabelsVisible,
   buildingCentroid,
@@ -34,8 +46,10 @@ export {
   FOOD_COLORS,
   FOOD_NAMES,
   type FoodProps,
+  type MapEdits,
+  applyFoodEdits,
   foodLayers,
   setFoodLabelsVisible,
 } from "./food";
 
-export { findRoute, findRoutes, type RoutingProfile, type Route } from "./routing";
+export { findRoute, findRoutes, routeSteps, type RoutingProfile, type Route, type RouteStep } from "./routing";

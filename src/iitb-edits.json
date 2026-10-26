@@ -1,0 +1,220 @@
+{
+ "pins": {
+  "National Centre for Aerospace Innovation and Research": [
+   72.917865,
+   19.13506
+  ]
+ },
+ "added": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Pre-Engineering Transit Building",
+    "building": "university"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       72.917785,
+       19.134765
+      ],
+      [
+       72.917945,
+       19.134765
+      ],
+      [
+       72.917945,
+       19.134965
+      ],
+      [
+       72.917785,
+       19.134965
+      ],
+      [
+       72.917785,
+       19.134765
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Hillside Community Hall",
+    "building": "yes"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       72.91672,
+       19.13692
+      ],
+      [
+       72.91694,
+       19.13692
+      ],
+      [
+       72.91694,
+       19.13719
+      ],
+      [
+       72.91672,
+       19.13719
+      ],
+      [
+       72.91672,
+       19.13692
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Shri Hanuman Mandir Hillside",
+    "building": "temple"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       72.91697,
+       19.13628
+      ],
+      [
+       72.91703,
+       19.13628
+      ],
+      [
+       72.91703,
+       19.13634
+      ],
+      [
+       72.91697,
+       19.13634
+      ],
+      [
+       72.91697,
+       19.13628
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Lakeside Community Hall",
+    "building": "yes"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       72.91218,
+       19.12413
+      ],
+      [
+       72.9124,
+       19.12413
+      ],
+      [
+       72.9124,
+       19.1243
+      ],
+      [
+       72.91218,
+       19.1243
+      ],
+      [
+       72.91218,
+       19.12413
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Padmavati Devi Temple",
+    "building": "temple"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       72.90906,
+       19.12585
+      ],
+      [
+       72.90918,
+       19.12585
+      ],
+      [
+       72.90918,
+       19.12597
+      ],
+      [
+       72.90906,
+       19.12597
+      ],
+      [
+       72.90906,
+       19.12585
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Gowshala",
+    "building": "cowshed"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       72.90904,
+       19.12606
+      ],
+      [
+       72.9092,
+       19.12606
+      ],
+      [
+       72.9092,
+       19.12618
+      ],
+      [
+       72.90904,
+       19.12618
+      ],
+      [
+       72.90904,
+       19.12606
+      ]
+     ]
+    ]
+   }
+  }
+ ],
+ "food": {
+  "ChEA Canteen": [
+   72.9183643,
+   19.1302357
+  ]
+ }
+}

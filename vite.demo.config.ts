@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sharePages } from "./demo/share-pages";
@@ -15,6 +16,8 @@ export default defineConfig({
   root: "demo",
   publicDir: "../assets",
   server: { port: 5183 },
+  // ponytail: checked at server start; restart after symlinking tiles in
+  define: { "import.meta.env.VITE_LOCAL_TILES": JSON.stringify(fs.existsSync(path.resolve(__dirname, "assets/tiles"))) },
   plugins: [react(), tailwindcss(), sharePages()],
   resolve: { alias: { "@": path.resolve(__dirname, "demo/src") } },
   build: {
