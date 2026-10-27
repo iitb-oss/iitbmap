@@ -5,6 +5,7 @@ export {
   getCampusStyle,
   mergeCampusLayers,
   setCampusTheme,
+  refreshCampusSources,
   BOUNDARY_SOURCE_ID,
   BOUNDARY_LAYER_ID,
   IITB_BOUNDARY,
@@ -18,18 +19,29 @@ export {
   ROAD_WIDTH_MIN_ZOOM,
   IITB_ROADS,
   roadWidthLayer,
+  SPORTS_SOURCE_ID,
+  SPORTS_DETAIL_MIN_ZOOM,
+  IITB_SPORTS,
+  sportsLayers,
   ADDED_BUILDINGS_LAYER_ID,
   addedBuildingsLayer,
   BUILDINGS_3D_LAYER_ID,
-  STOREY_M,
   buildings3dLayer,
+  BUILDINGS_3D_ROOF_LAYER_ID,
+  buildings3dRoofLayer,
   setBuildings3d,
   filterBuildings,
+  LANDMARK_WALLS_LAYER_ID,
+  LANDMARK_SOLIDS_LAYER_ID,
+  landmarkLayers,
+  registerCampusImages,
   type CampusStyleOptions,
   type MergeCampusLayersOptions,
 } from "./style";
 
-export { CAMPUS_BOUNDS, CAMPUS_MAX_BOUNDS, CAMPUS_CENTER, CAMPUS_BBOX, MIN_ZOOM, MAX_ZOOM, MAP_BG, MAP_BG_DARK, inCampusBbox } from "./geo";
+export { LANDMARKS_SOURCE_ID, landmarkParts } from "./landmarks";
+
+export { CAMPUS_BOUNDS, CAMPUS_MAX_BOUNDS, CAMPUS_CENTER, CAMPUS_BBOX, MIN_ZOOM, MAX_ZOOM, STOREY_M, MAP_BG, MAP_BG_DARK, inCampusBbox } from "./geo";
 
 export {
   IITB_BUILDINGS,

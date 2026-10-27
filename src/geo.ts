@@ -14,6 +14,8 @@ export const CAMPUS_CENTER: [number, number] = [72.9155, 19.136];
 export const CAMPUS_BBOX = { latMin: 19.115, latMax: 19.157, lngMin: 72.903, lngMax: 72.928 };
 export const MIN_ZOOM = 13;
 export const MAX_ZOOM = 19;
+/** One storey, in metres. */
+export const STOREY_M = 3.2;
 
 export const MAP_BG = "#e4e9dc";
 export const MAP_BG_DARK = "#1e2620";

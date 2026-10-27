@@ -1,5 +1,6 @@
 // Short forms OSM names lack; fuzzy.ts derives initialisms. Keys are exact building names.
 export const BUILDING_ALIASES: Record<string, string[]> = {
+  // KCDH is in the basement
   KReSIT: ["KCDH", "Koita Centre for Digital Health", "Kanwal Rekhi", "CMINDS"],
   "Department of Bio sciences and Bio engineering": ["BSBE", "Biosciences"],
   "Department of Metalurgical and Material Science Engineering": ["MEMS", "Metallurgy"],
@@ -21,7 +22,10 @@ export const BUILDING_ALIASES: Record<string, string[]> = {
   Hospital: ["IIT Hospital"],
   "Post Office": ["IIT Bombay Post Office", "PO"],
   "New SAC": ["New Student Activity Centre", "New Students Activity Centre"],
-  "COPT - Aerospace (New) Department": ["New Aerospace", "Aerospace New"],
+  // BETIC is on the 6th floor
+  "COPT - Aerospace (New) Department": ["New Aerospace", "Aerospace New", "BETIC", "IITB-ICICI BETIC Hub"],
+  // SINE is on the 5th floor
+  "Rahul Bajaj Technology Innovation Centre": ["SINE", "Society for Innovation and Entrepreneurship"],
   AB1: ["Academic Building 1"],
   AB2: ["Academic Building 2"],
   "Fire and Safety Department": ["Fire Station", "Fire Brigade"],

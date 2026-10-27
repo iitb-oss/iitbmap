@@ -1,6 +1,9 @@
+import type { Feature, Polygon } from "geojson";
 import { describe, expect, it } from "vitest";
-import { BUILDING_LABEL_FILTER, BUILDING_LABEL_LAYER_ID } from "../src/buildings";
-import { addedBuildingsLayer, BUILDINGS_3D_LAYER_ID, buildings3dLayer, campusLayers, filterBuildings, getCampusStyle, mergeCampusLayers, STOREY_M } from "../src/style";
+import { BUILDING_LABEL_FILTER, BUILDING_LABEL_LAYER_ID, IITB_BUILDINGS } from "../src/buildings";
+import { STOREY_M } from "../src/geo";
+import { LANDMARK_LOOKS, landmarkParts } from "../src/landmarks";
+import { addedBuildingsLayer, BUILDINGS_3D_LAYER_ID, buildings3dLayer, buildings3dRoofLayer, PALETTE, campusLayers, filterBuildings, getCampusStyle, mergeCampusLayers } from "../src/style";
 
 describe("campusLayers", () => {
   it("defines one layer per campus source-layer, bottom to top", () => {
@@ -107,13 +110,24 @@ describe("mergeCampusLayers", () => {
 });
 
 describe("buildings3dLayer", () => {
-  it("extrudes only buildings with a storey count, hidden until switched on, below the labels", () => {
+  it("extrudes buildings with a storey count except landmarks, hidden until switched on, below the labels", () => {
     const layer = buildings3dLayer();
-    expect(layer.filter).toEqual(["has", "levels"]);
+    expect(layer.filter).toEqual(["all", ["has", "levels"], ["!", ["has", "landmark"]]]);
     expect(layer.layout?.visibility).toBe("none");
     expect(layer.paint?.["fill-extrusion-height"]).toEqual(["*", ["get", "levels"], STOREY_M]);
     const ids = getCampusStyle({ tileUrl: "t", glyphsUrl: "g" }).layers.map((l) => l.id);
     expect(ids.indexOf(BUILDINGS_3D_LAYER_ID)).toBeLessThan(ids.indexOf("building-label"));
+  });
+});
+
+describe("buildings3dRoofLayer", () => {
+  it("caps the walls in each kind's paler colour, with windowed walls textured in the kind's colour", () => {
+    const walls = buildings3dLayer(true).paint!["fill-extrusion-pattern"] as unknown[];
+    expect(JSON.stringify(walls)).toContain('"dormitory"],"hostel"');
+    expect(walls.at(-1)).toBe("-dark");
+    const roof = buildings3dRoofLayer().paint!;
+    expect(roof["fill-extrusion-base"]).toEqual(buildings3dLayer().paint!["fill-extrusion-height"]);
+    expect(JSON.stringify(roof["fill-extrusion-color"])).toContain(PALETTE.light.hostelRoof);
   });
 });
 
@@ -123,10 +137,50 @@ describe("filterBuildings", () => {
     const map = { getLayer: () => ({}), setFilter: (id: string, f: unknown) => filters.set(id, f) } as never;
     filterBuildings(map, ["Hostel 1"]);
     const only = ["in", ["get", "name"], ["literal", ["Hostel 1"]]];
-    expect(filters.get(BUILDINGS_3D_LAYER_ID)).toEqual(["all", ["has", "levels"], only]);
+    expect(filters.get(BUILDINGS_3D_LAYER_ID)).toEqual(["all", buildings3dLayer().filter, only]);
     expect(filters.get(BUILDING_LABEL_LAYER_ID)).toEqual(["all", BUILDING_LABEL_FILTER, only]);
     filterBuildings(map, null);
     expect(filters.get(BUILDINGS_3D_LAYER_ID)).toEqual(buildings3dLayer().filter);
     expect(filters.get(BUILDING_LABEL_LAYER_ID)).toEqual(BUILDING_LABEL_FILTER);
+  });
+});
+
+describe("landmarkParts", () => {
+  const parts = (name: string) => landmarkParts().features.filter((f) => f.properties!.name === name);
+  const props = (name: string) => parts(name).map((f) => f.properties!);
+
+  it("stacks a temple's plinth, sanctum and shikhara up to the flag, and pitches a shed's roof", () => {
+    const temple = props("Padmavati Devi Temple");
+    temple.slice(1).forEach((p, i) => expect(p.base).toBe(temple[i].height));
+    expect(temple.at(-1)!.tone).toBe("saffron");
+    const [walls, ...gable] = props("Machine Lab");
+    expect(walls).toMatchObject({ base: 0, tone: "academic", pattern: "ribs" });
+    expect(gable.length).toBeGreaterThan(2);
+    expect(gable[0]).toMatchObject({ base: walls.height, tone: "academicRoof" });
+  });
+
+  it("arches a vault across the short side only, and leaves a courtyard open", () => {
+    const span = (f: Feature<Polygon>) => {
+      const xs = f.geometry.coordinates[0].map((p) => p[0]), ys = f.geometry.coordinates[0].map((p) => p[1]);
+      return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+    };
+    const [walls, ...slabs] = parts("Indoor Basketball Court");
+    expect(slabs.length).toBeGreaterThan(3);
+    // the top slab is a narrow ridge still as long as the hall
+    expect(span(slabs.at(-1)!)).toBeGreaterThan(span(walls) * 0.8);
+    expect(slabs.every((f) => f.properties!.tone === "buildingRoof")).toBe(true);
+    expect(parts("SAC")[0].geometry.coordinates).toHaveLength(2);
+  });
+
+  it("names only buildings that exist, so a rename can't silently drop a look", () => {
+    const names = new Set(IITB_BUILDINGS.features.map((f) => f.properties!.name));
+    expect(Object.keys(LANDMARK_LOOKS).filter((n) => !names.has(n))).toEqual([]);
+  });
+
+  it("marks exactly the buildings it draws, for the plain 3D layer to skip", () => {
+    const drawn = new Set(landmarkParts().features.map((f) => f.properties!.name));
+    const marked = new Set(IITB_BUILDINGS.features.filter((f) => f.properties!.landmark).map((f) => f.properties!.name));
+    expect(marked).toEqual(drawn);
+    expect(marked).toContain("Padmavati Devi Temple");
   });
 });

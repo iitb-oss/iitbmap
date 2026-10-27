@@ -17,17 +17,15 @@ import {
   FOOD_LABEL_LAYER_ID,
   type FoodProps,
   setBuildings3d,
+  registerCampusImages,
+  refreshCampusSources,
   IITB_BUILDINGS,
   IITB_FOOD,
-  BUILDINGS_SOURCE_ID,
-  FOOD_SOURCE_ID,
   storeysByName,
   findRoutes,
   routeSteps,
   inCampusBbox,
   applyMapEdits,
-  pinnedLabels,
-  PINS_SOURCE_ID,
   IITB_EDITS,
   type MapEdits,
   type Route,
@@ -70,13 +68,6 @@ const SHOW_ALL = SHOW_OPTIONS.map((o) => o.id);
 const shownGroupsOf = (shown: string[]) => buildingGroups.filter((g) => shown.includes(g.id));
 const PITCH_3D = 55;
 const sheetApplied = applySheet(IITB_BUILDINGS, IITB_FOOD);
-
-/** Pushes the in-place-patched collections to the map after the sheet or an edit. */
-function refreshBuildingSources(map: maplibregl.Map | null) {
-  for (const [id, data] of [[BUILDINGS_SOURCE_ID, IITB_BUILDINGS], [FOOD_SOURCE_ID, IITB_FOOD], [PINS_SOURCE_ID, pinnedLabels()]] as const) {
-    (map?.getSource(id) as maplibregl.GeoJSONSource | undefined)?.setData(data);
-  }
-}
 
 const askName = () => window.prompt("Building name")?.trim() || null;
 
@@ -449,6 +440,7 @@ export default function App() {
       maxBounds: CAMPUS_MAX_BOUNDS,
     });
     mapRef.current = map;
+    registerCampusImages(map);
     // layer listeners outlive setStyle, so register once
     for (const id of [FOOD_DOT_LAYER_ID, FOOD_LABEL_LAYER_ID]) {
       map.on("click", id, (e) => {
@@ -532,7 +524,7 @@ export default function App() {
   const [buildingStoreys, setBuildingStoreys] = React.useState(storeysByName);
   React.useEffect(() => {
     sheetApplied.then(() => {
-      refreshBuildingSources(mapRef.current);
+      if (mapRef.current) refreshCampusSources(mapRef.current);
       setBuildingStoreys(storeysByName());
     }, (err) => console.warn("iitbmap: sheet not loaded", err));
   }, []);
@@ -540,7 +532,7 @@ export default function App() {
   React.useEffect(() => {
     if (!EDIT_ENABLED) return;
     applyMapEdits(edits);
-    refreshBuildingSources(mapRef.current);
+    if (mapRef.current) refreshCampusSources(mapRef.current);
     setBuildingStoreys(storeysByName());
   }, [edits]);
 
