@@ -20,7 +20,7 @@ describe("searchNames", () => {
 
   it.each([
     ["cse", "Computer Science & Engineering Center (New)"],
-    ["ese", "Department of Energy Sciences and Engineering"],
+    ["ese", "Department of Energy Science and Engineering"],
     ["bsbe", "Department of Bio sciences and Bio engineering"],
     ["kcdh", "KReSIT"],
     ["idc", "Industrial Design Center"],
@@ -32,8 +32,8 @@ describe("searchNames", () => {
     ["lhc", "Lecture Hall"],
     ["lhc", "Lecture Hall Complex 3"],
     ["gg", "Girish Gaitonde Building"],
-    ["ccd", "Department of Energy Sciences and Engineering"],
-    ["cafe coffee day", "Department of Energy Sciences and Engineering"],
+    ["ccd", "Department of Energy Science and Engineering"],
+    ["cafe coffee day", "Department of Energy Science and Engineering"],
   ])("finds the short form %j", (q, name) => {
     expect(searchNames(q, names, BUILDING_ALIASES)).toContain(name);
   });
