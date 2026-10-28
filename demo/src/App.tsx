@@ -215,6 +215,8 @@ export default function App() {
   const toMarkerRef = React.useRef<maplibregl.Marker | null>(null);
   const geolocateRef = React.useRef<maplibregl.GeolocateControl | null>(null);
   const lastRoutedFixRef = React.useRef<{ at: [number, number]; to: string } | null>(null);
+  // autofill "from" once per destination, so clearing it sticks
+  const autoFromForRef = React.useRef<string | null>(null);
 
   const [themePref, setThemePref] = React.useState<ThemePref>(readThemePref);
   const [systemDark, setSystemDark] = React.useState(() => DARK_QUERY.matches);
@@ -581,7 +583,8 @@ export default function App() {
   // live directions from the GPS fix; only the first route fits the camera, so later fixes don't fight panning
   React.useEffect(() => {
     if (!directions || !myLocation || !inCampusBbox(myLocation[1], myLocation[0]) || !toPlace) return;
-    if (!fromValue.trim()) {
+    if (!fromValue.trim() && autoFromForRef.current !== toValue) {
+      autoFromForRef.current = toValue;
       setFromValue(MY_LOCATION_LABEL);
       return;
     }
