@@ -597,6 +597,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [directions, myLocation, fromValue, toValue]);
 
+  // alternatives differ per profile; restart at route 0
+  React.useEffect(() => {
+    if (routeState.routes.length > 0) computeRoute(0, { pushUrl: true, fit: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
   // computeRoute owns the camera in directions mode
   React.useEffect(() => {
     const map = mapRef.current;
