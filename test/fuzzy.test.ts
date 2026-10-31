@@ -31,6 +31,8 @@ describe("searchNames", () => {
     ["gullu", "Gulmohar"],
     ["lhc", "Lecture Hall"],
     ["lhc", "Lecture Hall Complex 3"],
+    ["lhc3", "Lecture Hall Complex 3"],
+    ["krishnamurthy", "Lecture Hall Complex 3"],
     ["gg", "Girish Gaitonde Building"],
     ["ccd", "Department of Energy Science and Engineering"],
     ["cafe coffee day", "Department of Energy Science and Engineering"],

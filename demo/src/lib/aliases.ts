@@ -7,6 +7,7 @@ export const BUILDING_ALIASES: Record<string, string[]> = {
   "Department of Energy Science and Engineering": ["ESE", "DESE", "CCD", "Cafe Coffee Day"],
   Gulmohar: ["Gullu"],
   "Lecture Hall": ["LHC", "Lecture Hall Complex"],
+  "Lecture Hall Complex 3": ["LHC3", "LHC 3", "Krishnamurthy Lecture Hall Complex", "Krishnamurthy"],
   SOM: ["SJMSOM", "School of Management"],
   "Viktor Menezes Convention Centre": ["VMCC", "Victor Menezes Convention Centre"],
   "PC Saxena Auditorium LT": ["PCSA", "PC Saxena Auditorium"],
