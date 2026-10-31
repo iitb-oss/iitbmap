@@ -1,0 +1,54 @@
+room,capacity,venue,building,floor
+LA 001,350,Between HSS & Chemical Engg. Dept. along Corridor,Lecture Hall Complex 3,G
+LA 002,350,Between HSS & Chemical Engg. Dept. along Corridor,Lecture Hall Complex 3,G
+LA 201,350,Between HSS & Chemical Engg. Dept. along Corridor,Lecture Hall Complex 3,2
+LA 202,350,Between HSS & Chemical Engg. Dept. along Corridor,Lecture Hall Complex 3,2
+LH 101,240,Between Physics & MEMS Dept. along Corridor,Lecture Hall,1
+LH 102,240,Between Physics & MEMS Dept. along Corridor,Lecture Hall,1
+LH 301,240,Between Physics & MEMS Dept. along Corridor,Lecture Hall,3
+LH 302,240,Between Physics & MEMS Dept. along Corridor,Lecture Hall,3
+LC 001,150,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,G
+LC 002,150,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,G
+LC 101,150,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,1
+LC 102,150,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,1
+LC 201,150,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,2
+LC 202,150,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,2
+LC 301,150,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,3
+LC 302,150,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,3
+IC 01,110,SOM IRCC Building,SOM,
+IC 02,110,SOM IRCC Building,SOM,
+IC 03,110,SOM IRCC Building,SOM,
+LT 001,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,G
+LT 002,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,G
+LT 003,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,G
+LT 004,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,G
+LT 005,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,G
+LT 006,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,G
+LT 101,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,1
+LT 102,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,1
+LT 103,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,1
+LT 104,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,1
+LT 105,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,1
+LT 106,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,1
+LT 201,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,2
+LT 202,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,2
+LT 203,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,2
+LT 204,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,2
+LT 205,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,2
+LT 206,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,2
+LT 301,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,3
+LT 302,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,3
+LT 303,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,3
+LT 304,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,3
+LT 305,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,3
+LT 306,60,"Opp. KReSIT Bldg., Between Physics & MEMS Dept.",Lecture Hall,3
+ESE 102,84,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 103,80,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 104,80,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 105,84,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 106,98,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 109,84,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 110,80,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 111,80,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 112,84,Energy Science and Engineering department building,Department of Energy Science and Engineering,1
+ESE 113,98,Energy Science and Engineering department building,Department of Energy Science and Engineering,1

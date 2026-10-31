@@ -38,6 +38,18 @@ describe("searchNames", () => {
     expect(searchNames(q, names, BUILDING_ALIASES)).toContain(name);
   });
 
+  it.each(["Hostel15", "hostel 15", "HOSTEL-15"])("finds every Hostel 15 building for %j", (q) => {
+    expect(searchNames(q, names, BUILDING_ALIASES)).toEqual(expect.arrayContaining(["Hostel 15A", "Hostel 15 C", "H-15 Wing B"]));
+  });
+
+  it("splits letters from digits without losing names that join them", () => {
+    expect(searchNames("hostel12", names, BUILDING_ALIASES)[0]).toBe("Hostel 12");
+    expect(searchNames("A91", names, BUILDING_ALIASES)[0]).toBe("A91 Eco Hub");
+    expect(searchNames("a91 eco", names, BUILDING_ALIASES)[0]).toBe("A91 Eco Hub");
+    expect(searchNames("h15", names, BUILDING_ALIASES)).toContain("H-15 Wing B");
+    expect(searchNames("2b12", names, BUILDING_ALIASES)[0]).toBe("2B-12 (67-72)");
+  });
+
   it("only has aliases for places that exist", () => {
     for (const name of Object.keys(BUILDING_ALIASES)) expect(PLACE_NAMES).toContain(name);
   });

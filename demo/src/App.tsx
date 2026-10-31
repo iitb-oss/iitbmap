@@ -10,6 +10,7 @@ import {
   MIN_ZOOM,
   MAX_ZOOM,
   CAMPUS_SOURCE_ID,
+  STOREY_M,
   filterBuildings,
   setFoodLabelsVisible,
   setFoodHighlight,
@@ -34,6 +35,7 @@ import { readSharedRoute, routeLink, writeSharedRoute, type SharedRoute } from "
 import { buildingPath, buildingSlug, slugFromPathname } from "@/lib/building-url";
 import { decodeDigipin, encodeDigipin } from "@/lib/digipin";
 import { saveOffline, tilesIn } from "@/lib/offline";
+import { BOOKING_URL, findRooms, floorBand, roomDetail, roomIndex, roomsByFloor, type RoomData, type RoomHit, type RoomIndex } from "@/lib/rooms";
 import { addRecent, loadPlaces, storePlaces, toggleSaved } from "@/lib/saved-places";
 import { foodPopup } from "@/lib/food-popup";
 import { applySheet } from "@/lib/sheet";
@@ -59,13 +61,15 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BuildingList } from "@/components/building-list";
+import { RoomList } from "@/components/room-list";
 import { groupBuildings, groupFood } from "@/lib/building-groups";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { BuildingCombobox } from "@/components/building-combobox";
+import { BuildingCombobox, type ExtraSuggestion } from "@/components/building-combobox";
 
 const ROUTE_SOURCE_ID = "demo-route";
 const ROUTE_LAYER_ID = "demo-route-line";
 const ROUTE_LEG_LAYER_ID = "demo-route-leg";
+const ROOM_FLOOR_ID = "demo-room-floor";
 
 const buildingGroups = groupBuildings(
   IITB_BUILDINGS.features.flatMap((f) => (f.properties?.name ? [{ name: f.properties.name, building: f.properties.building }] : [])),
@@ -114,6 +118,8 @@ const isFoodOnly = (shown: string[]) => shown.length === 1 && shown[0] === "food
 
 // the URL the page opened with: a shared link names a place or a route
 const START_URL = new URL(window.location.href);
+// a shared room ("room=A906"), reopened once the room index loads
+const START_ROOM = START_URL.searchParams.get("room");
 
 // Opened via a /b/<slug>/ share page: that place is the destination.
 const sharedPlace = (() => {
@@ -226,6 +232,24 @@ function drawRouteLayer(map: maplibregl.Map, routes: Route[], selectedIndex: num
       paint: { ...paint, "line-dasharray": [0.5, 1.5] },
     });
   }
+}
+
+/** The picked room's storey, in the pin's colour; 3D view only, where height reads as a floor. */
+function drawRoomFloor(map: maplibregl.Map, band: GeoJSON.Feature | null, shown: boolean, dark: boolean) {
+  const data: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: band ? [band] : [] };
+  const source = map.getSource(ROOM_FLOOR_ID) as maplibregl.GeoJSONSource | undefined;
+  if (source) source.setData(data);
+  else {
+    map.addSource(ROOM_FLOOR_ID, { type: "geojson", data });
+    map.addLayer({
+      id: ROOM_FLOOR_ID,
+      type: "fill-extrusion",
+      source: ROOM_FLOOR_ID,
+      paint: { "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "top"], "fill-extrusion-opacity": 0.9 },
+    });
+  }
+  map.setPaintProperty(ROOM_FLOOR_ID, "fill-extrusion-color", PALETTE[dark ? "dark" : "light"].pin);
+  map.setLayoutProperty(ROOM_FLOOR_ID, "visibility", shown ? "visible" : "none");
 }
 
 function openFoodPopup(map: maplibregl.Map, props: FoodProps, at: [number, number]) {
@@ -419,17 +443,22 @@ export default function App() {
   };
 
   // route links use the share Worker when configured, so the preview shows the route
+  // a picked room rides along as "room=", so the link reopens it
   const shareUrl = () => {
+    const url = placeOrRouteUrl();
+    if (shownRoom) url.searchParams.set("room", shownRoom.room);
+    return url.href;
+  };
+  const placeOrRouteUrl = (): URL => {
     const worker = import.meta.env.VITE_SHARE_URL;
     if (routeState.routes.length === 0) {
-      if (findPlaceCentroid(toValue)) return new URL(buildingPath(toValue.trim()), appBase).href;
-      if (!decodeDigipin(toValue)) return appBase.href;
-      const pin = new URL(appBase);
-      pin.searchParams.set("to", toValue.trim());
-      return pin.href;
+      if (findPlaceCentroid(toValue)) return new URL(buildingPath(toValue.trim()), appBase);
+      const url = new URL(appBase);
+      if (decodeDigipin(toValue)) url.searchParams.set("to", toValue.trim());
+      return url;
     }
     const route = sharedRoute(routeState.selectedIndex);
-    return (worker ? writeSharedRoute(new URL("r", worker), route) : routeLink(appBase, route)).href;
+    return worker ? writeSharedRoute(new URL("r", worker), route) : routeLink(appBase, route);
   };
 
   // GitHub's new-issue form, filled with this page's link; a shown route titles it
@@ -550,12 +579,6 @@ export default function App() {
     setFromValue("");
     clearRoute();
   };
-
-  // Bridges into MapLibre's persistent `style.load` listener, which is registered once
-  // and would otherwise only ever see the state from the render it was created in.
-  const latest = { fromValue, toValue, routeState, shown, buildings3d, recomputeRoute, dark, editing, drawing, pinLabel, addBuilding, moveFood };
-  const latestRef = React.useRef(latest);
-  latestRef.current = latest;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -683,6 +706,7 @@ export default function App() {
         } else if (current.routeState.routes.length > 0) {
           drawRouteLayer(map, current.routeState.routes, current.routeState.selectedIndex);
         }
+        if (current.roomFloor) drawRoomFloor(map, current.roomFloor, current.buildings3d, current.dark);
       });
       map.on("error", (e) => {
         // offline, unsaved tiles fail one by one; one message covers them
@@ -840,6 +864,53 @@ export default function App() {
       return next;
     });
   const toName = findPlace(toValue)?.properties?.name as string | undefined;
+
+  // room numbers: their own chunk, fetched once a query has a digit or a building is picked
+  const [rooms, setRooms] = React.useState<RoomIndex | null>(null);
+  const [room, setRoom] = React.useState<RoomHit | null>(null);
+  const wantsRooms = /\d/.test(toValue) && !toName;
+  React.useEffect(() => {
+    if ((wantsRooms || START_ROOM || toName) && !rooms) {
+      import("../../src/iitb-rooms.json").then((m) => {
+        const index = roomIndex(m.default as RoomData);
+        setRooms(index);
+        const hit = START_ROOM && findRooms(index, START_ROOM).find((h) => h.room === START_ROOM && h.building === toName);
+        if (hit) setRoom(hit);
+      });
+    }
+  }, [wantsRooms, toName, rooms]);
+  const roomSuggestions = React.useMemo<ExtraSuggestion[]>(
+    () =>
+      rooms && wantsRooms
+        ? findRooms(rooms, toValue).map((hit) => ({
+            key: `${hit.room} ${hit.label}`,
+            label: `Room ${hit.room}`,
+            detail: roomDetail(hit),
+            onSelect: () => {
+              setRoom(hit);
+              setToValue(hit.building);
+            },
+          }))
+        : [],
+    [rooms, wantsRooms, toValue],
+  );
+  const roomGroups = React.useMemo(() => (rooms && toName ? roomsByFloor(rooms, toName) : []), [rooms, toName]);
+  // the room stays shown while To is still its building
+  const shownRoom = room && room.building === toName ? room : null;
+  // a room whose wing isn't known gets no band; it could name the wrong wing
+  const roomFloor = React.useMemo(() => {
+    const building = shownRoom && shownRoom.label === shownRoom.building && findPlace(shownRoom.building);
+    return building ? floorBand(building, shownRoom.floor, STOREY_M) : null;
+  }, [shownRoom]);
+  // Bridges into MapLibre's persistent `style.load` listener, which is registered once
+  // and would otherwise only ever see the state from the render it was created in.
+  const latest = { fromValue, toValue, routeState, shown, buildings3d, recomputeRoute, dark, editing, drawing, pinLabel, addBuilding, moveFood, roomFloor };
+  const latestRef = React.useRef(latest);
+  latestRef.current = latest;
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (map && styleReadyRef.current) drawRoomFloor(map, roomFloor, buildings3d, dark);
+  }, [roomFloor, buildings3d, dark, mapReady]);
   // after a pause, so names passed while typing aren't kept
   React.useEffect(() => {
     if (!toName) return;
@@ -1024,7 +1095,8 @@ export default function App() {
                   value={toValue}
                   onValueChange={setToValue}
                   buildingNames={PLACE_NAMES}
-                  placeholder={directions ? "To (building or DIGIPIN)" : "Search buildings"}
+                  extra={roomSuggestions}
+                  placeholder={directions ? "To (building, room or DIGIPIN)" : "Search buildings or rooms"}
                   className="flex-1"
                 />
                 {toName && (
@@ -1064,7 +1136,27 @@ export default function App() {
                 </ul>
               )}
               {/* a dropped pin's To already is its DIGIPIN */}
+              {shownRoom && (
+                <p className="-mt-1 px-1 text-sm font-medium">
+                  Room {shownRoom.room}
+                  {roomDetail(shownRoom, false) && ` · ${roomDetail(shownRoom, false)}`}
+                  {shownRoom.seats && (
+                    <>
+                      {" · "}
+                      <a
+                        href={BOOKING_URL}
+                        target="_blank"
+                        rel="noopener"
+                        className="rounded-sm font-normal underline underline-offset-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      >
+                        Book this room
+                      </a>
+                    </>
+                  )}
+                </p>
+              )}
               {!decodeDigipin(toValue) && <DigipinHint label="To" place={toPlace} />}
+              {roomGroups.length > 0 && <RoomList key={toName} groups={roomGroups} selected={shownRoom} onPick={setRoom} />}
               {directions && (
                 <>
                   {fromIsMe && <DigipinHint label="You" place={myLocation} />}

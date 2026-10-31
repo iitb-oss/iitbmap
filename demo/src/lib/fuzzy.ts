@@ -25,12 +25,15 @@ function wordCost(typed: string, word: string): number {
   );
 }
 
+// letters and digits as separate words on both sides, so "hostel15" finds "Hostel 15A"
+const splitDigits = (s: string) => s.replace(/(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])/g, " ");
+
 const NO_ALIASES: Record<string, string[]> = {};
 const STOPWORDS = new Set(["of", "and", "for", "the", "in", "no"]);
 
 interface Entry {
   name: string;
-  full: string; // normalized name
+  full: string; // normalized name, letters and digits apart
   words: string[]; // matched with typo tolerance
   codes: string[]; // initialisms and aliases; exact prefix only, typos on short codes match everything
   aliases: string[]; // hand-written, so an exact match outranks an initialism
@@ -39,15 +42,18 @@ interface Entry {
 function toEntry(name: string, aliases: string[]): Entry {
   const full = normalize(name);
   const words = full.split(" ");
+  const parts = splitDigits(full).split(" ");
   const initials = words.filter((w) => !STOPWORDS.has(w)).map((w) => (/^\d/.test(w) ? w : w[0])).join(""); // "Hostel 12" -> "h12"
   // every suffix, so "ese" matches as well as "dese"
   const codes = [...initials].map((_, i) => initials.slice(i)).filter((c) => c.length >= 2);
-  const aliasWords = aliases.flatMap((a) => normalize(a).split(" "));
+  const aliasWords = aliases.flatMap((a) => splitDigits(normalize(a)).split(" "));
   const aliasCodes = aliases.map((a) => normalize(a).replace(/ /g, ""));
   // campus shorthand: "H5" is Hostel 5 and its wings
-  const hostel = full.match(/^hostel (?:no )?(\d+) ?[a-d]?(?: wing)?$/);
+  const hostel = full.match(/^(?:hostel (?:no )?|h )(\d+) ?[a-d]?(?: wing(?: [a-d])?)?$/);
   if (hostel) aliasCodes.push(`h${hostel[1]}`);
-  return { name, full, words: [...words, ...aliasWords], codes: [...codes, ...aliasCodes], aliases: aliasCodes };
+  // "H 15 Wing B" names a hostel too
+  if (hostel && !full.startsWith("hostel")) parts.push("hostel");
+  return { name, full: splitDigits(full), words: [...parts, ...aliasWords], codes: [...codes, ...aliasCodes], aliases: aliasCodes };
 }
 
 const entryCache = new WeakMap<string[], { aliases: Record<string, string[]>; entries: Entry[] }>();
@@ -62,11 +68,12 @@ export function searchNames(query: string, names: string[], aliases: Record<stri
     entryCache.set(names, cached);
   }
   const { entries } = cached;
-  const typed = q.split(" ");
   const code = q.replace(/ /g, "");
+  const spaced = splitDigits(q);
+  const typed = spaced.split(" ");
   const scored: { name: string; tier: number; cost: number }[] = [];
   for (const e of entries) {
-    const tier = e.aliases.includes(code) ? 0 : e.codes.includes(code) ? 1 : e.full.includes(q) ? 2 : 3;
+    const tier = e.aliases.includes(code) ? 0 : e.codes.includes(code) ? 1 : e.full.includes(spaced) ? 2 : 3;
     let cost = 0;
     for (const t of typed) {
       const best = e.codes.some((c) => c.startsWith(t)) ? 0 : Math.min(...e.words.map((w) => wordCost(t, w)));
