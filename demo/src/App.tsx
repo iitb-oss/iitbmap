@@ -5,7 +5,6 @@ import { ArrowUpDown, Car, ChevronDown, Clock, CloudDownload, Download, Flag, Fo
 import {
   getCampusStyle,
   setCampusTheme,
-  CAMPUS_CENTER,
   CAMPUS_MAX_BOUNDS,
   MIN_ZOOM,
   MAX_ZOOM,
@@ -83,6 +82,7 @@ const FOOD_FEATURES = IITB_FOOD.features.filter((f) => !NON_FOOD_AMENITIES.inclu
 const FOOD_GROUPS = groupFood(FOOD_FEATURES.map((f) => f.properties));
 const shownGroupsOf = (shown: string[]) => buildingGroups.filter((g) => shown.includes(g.id));
 const PITCH_3D = 55;
+const START_VIEW = { center: [72.9115, 19.1288] as [number, number], zoom: 15.5, pitch: 50 };
 const sheetApplied = applySheet(IITB_BUILDINGS, IITB_FOOD);
 
 const askName = () => window.prompt("Building name")?.trim() || null;
@@ -600,9 +600,9 @@ export default function App() {
       const map = new MapLibre.Map({
         container: mapContainerRef.current,
         style,
-        center: sharedCentroid ?? CAMPUS_CENTER,
-        zoom: sharedCentroid ? 17 : 16,
-        pitch: buildings3d ? PITCH_3D : 0,
+        center: sharedCentroid ?? START_VIEW.center,
+        zoom: sharedCentroid ? 17 : START_VIEW.zoom,
+        pitch: buildings3d ? (sharedCentroid ? PITCH_3D : START_VIEW.pitch) : 0,
         minZoom: MIN_ZOOM,
         maxZoom: MAX_ZOOM,
         maxBounds: CAMPUS_MAX_BOUNDS,
