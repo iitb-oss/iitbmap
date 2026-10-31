@@ -291,7 +291,7 @@ const WIDE_SCREEN = "(min-width: 640px)";
 // phones fold the panel after routing, upright or on their side
 const FOLD_SCREEN = "(max-width: 639px), (max-height: 500px)";
 const FIT_PADDING = 48;
-const NEW_ISSUE_URL = "https://github.com/iitb-oss/iitbmap/issues/new";
+const NEW_ISSUE_URL = "https://github.com/saketkc/iitbmap/issues/new";
 
 // a building's centroid can sit this far inside it
 const ARRIVE_M = 30;
