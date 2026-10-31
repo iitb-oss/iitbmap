@@ -106,6 +106,13 @@ describe("routeSteps", () => {
     expect(steps.some((s) => s.text.endsWith("onto Main Gate Road") && s.distanceMeters > 1500)).toBe(true);
   });
 
+  it("leaves out code-like street names no sign shows", () => {
+    const texts = routeSteps(findRoute(at("Hostel 4"), at("Hostel 13"))!, "Hostel 13").map((s) => s.text);
+    expect(texts.some((t) => t.startsWith("Turn right"))).toBe(true);
+    expect(texts.join()).not.toMatch(/\bs1\b/);
+    expect(texts.at(-1)).toBe("Arrive at Hostel 13");
+  });
+
   it("drives from Staff Hostel to VMCC on campus roads", () => {
     const texts = routeSteps(findRoute(at("Staff Hostel"), at("Viktor Menezes Convention Centre"), "drive")!).map((s) => s.text);
     expect(texts).toContain("Turn right onto Main Gate Road");

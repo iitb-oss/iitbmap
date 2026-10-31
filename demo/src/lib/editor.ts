@@ -1,4 +1,4 @@
-import maplibregl from "maplibre-gl";
+import type maplibregl from "maplibre-gl";
 import type { Feature, Polygon, Position } from "geojson";
 import {
   BUILDING_LABEL_LAYER_ID,

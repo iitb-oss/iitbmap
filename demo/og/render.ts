@@ -5,13 +5,13 @@ import type { Feature, Polygon, Position } from "geojson";
 import { buildingCentroid, CAMPUS_BBOX, IITB_BUILDINGS, MAP_BG, type Route, type RoutingProfile } from "../../src/index";
 import { DEFAULT_TILE_URL } from "../../src/config";
 import { BUILDING_OPACITY, buildingKind, DEFAULT_STREET_WEIGHT, PALETTE, PATHS, STREET_WEIGHTS } from "../../src/style";
-import { formatRouteInfo, MARKER_COLORS } from "../src/lib/places";
+import { formatRouteInfo } from "../src/lib/places";
 
 export const W = 1200;
 export const H = 630;
 const Z = 16; // highest-detail tile zoom
 const WORLD = 256 * 2 ** Z;
-const COLORS = { ...PALETTE.light, ...MARKER_COLORS };
+const COLORS = PALETTE.light;
 const FONT = `font-family="Inter, Helvetica Neue, Helvetica, Arial, DejaVu Sans, sans-serif"`;
 
 type Pt = [number, number];
@@ -181,11 +181,11 @@ export function sceneSvg(basemap: Basemap, scene: Scene): string {
   ${BUILDING_FILLS.map((k) => `<path d="${basemap.fills[k]}" fill="${COLORS[k]}" fill-opacity="${BUILDING_OPACITY}"/>`).join("")}
   <path d="${basemap.fills.water}" fill="${COLORS.water}"/>
   <path d="${basemap.waterways}" fill="none" stroke="${COLORS.water}" stroke-width="${px(3)}"/>
-  ${scene.highlight ? `<path d="${ringsToPath([scene.highlight], true)}" fill="${COLORS.end}" stroke="#fff" stroke-width="${px(3)}" stroke-linejoin="round"/>` : ""}
+  ${scene.highlight ? `<path d="${ringsToPath([scene.highlight], true)}" fill="${COLORS.pin}" stroke="#fff" stroke-width="${px(3)}" stroke-linejoin="round"/>` : ""}
   ${routePath ? `<path d="${routePath}" fill="none" stroke="#fff" stroke-width="${px(14)}" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="${routePath}" fill="none" stroke="${COLORS.route}" stroke-width="${px(8)}" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
-  ${scene.start ? `<circle cx="${scene.start[0].toFixed(1)}" cy="${scene.start[1].toFixed(1)}" r="${px(13)}" fill="${COLORS.start}" stroke="#fff" stroke-width="${px(4)}"/>` : ""}
-  ${scene.pin ? pinSvg(scene.pin, k, COLORS.end) : ""}
+  ${scene.start ? `<circle cx="${scene.start[0].toFixed(1)}" cy="${scene.start[1].toFixed(1)}" r="${px(13)}" fill="${COLORS.route}" stroke="#fff" stroke-width="${px(4)}"/>` : ""}
+  ${scene.pin ? pinSvg(scene.pin, k, COLORS.pin) : ""}
 </g>
 <rect x="32" y="${top}" width="${cardW}" height="${cardH}" rx="20" fill="#fff" fill-opacity="0.95"/>
 ${scene.lines.map((l, i) => `<text x="68" y="${top + baselines[i]}" ${FONT} font-size="${scene.fontSize}" font-weight="700" fill="#1c1917">${esc(l)}</text>`).join("")}

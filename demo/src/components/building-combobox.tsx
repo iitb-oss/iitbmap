@@ -94,7 +94,7 @@ export function BuildingCombobox({ id, value, onValueChange, buildingNames, plac
       >
         <Command shouldFilter={false}>
           <CommandList id={listboxId}>
-            <CommandEmpty>No matching building.</CommandEmpty>
+            <CommandEmpty>No place matches. Try a short name like CSE, or a DIGIPIN.</CommandEmpty>
             {matches.map((name, i) => (
               <CommandItem
                 key={name}
