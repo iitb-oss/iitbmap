@@ -19,31 +19,62 @@ function highlightMatch(name: string, query: string): React.ReactNode {
   );
 }
 
+/** A suggestion listed above the name matches, such as a room. */
+export interface ExtraSuggestion {
+  key: string;
+  label: string;
+  detail: string;
+  onSelect: () => void;
+}
+
 interface BuildingComboboxProps {
   id?: string;
   value: string;
   onValueChange: (value: string) => void;
   buildingNames: string[];
+  extra?: ExtraSuggestion[];
   placeholder?: string;
   className?: string;
 }
 
-export function BuildingCombobox({ id, value, onValueChange, buildingNames, placeholder, className }: BuildingComboboxProps) {
+const NO_EXTRA: ExtraSuggestion[] = [];
+
+export function BuildingCombobox({ id, value, onValueChange, buildingNames, extra = NO_EXTRA, placeholder, className }: BuildingComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [highlightedIndex, setHighlightedIndex] = React.useState(0);
 
-  const matches = React.useMemo(() => searchNames(value, buildingNames, BUILDING_ALIASES), [value, buildingNames]);
-  const showPopover = open && matches.length > 0;
+  const items = React.useMemo(
+    () => [
+      ...extra.map((s) => ({
+        key: s.key,
+        current: false,
+        onSelect: s.onSelect,
+        content: (
+          <span className="flex flex-col">
+            <span className="font-medium">{s.label}</span>
+            <span className="text-xs text-muted-foreground">{s.detail}</span>
+          </span>
+        ),
+      })),
+      ...searchNames(value, buildingNames, BUILDING_ALIASES).map((name) => ({
+        key: name,
+        current: name === value,
+        onSelect: () => onValueChange(name),
+        content: highlightMatch(name, value),
+      })),
+    ],
+    [extra, value, buildingNames, onValueChange],
+  );
+  const showPopover = open && items.length > 0;
 
-  React.useEffect(() => setHighlightedIndex(0), [matches]);
+  React.useEffect(() => setHighlightedIndex(0), [items]);
 
   const listboxId = `${id}-listbox`;
   const optionId = (i: number) => `${id}-option-${i}`;
 
   function selectMatch(i: number) {
-    const name = matches[i];
-    if (!name) return;
-    onValueChange(name);
+    if (!items[i]) return;
+    items[i].onSelect();
     setOpen(false);
   }
 
@@ -74,7 +105,7 @@ export function BuildingCombobox({ id, value, onValueChange, buildingNames, plac
             if (!showPopover) return;
             if (e.key === "ArrowDown") {
               e.preventDefault();
-              setHighlightedIndex((i) => Math.min(i + 1, matches.length - 1));
+              setHighlightedIndex((i) => Math.min(i + 1, items.length - 1));
             } else if (e.key === "ArrowUp") {
               e.preventDefault();
               setHighlightedIndex((i) => Math.max(i - 1, 0));
@@ -95,16 +126,16 @@ export function BuildingCombobox({ id, value, onValueChange, buildingNames, plac
         <Command shouldFilter={false}>
           <CommandList id={listboxId}>
             <CommandEmpty>No place matches. Try a short name like CSE, or a DIGIPIN.</CommandEmpty>
-            {matches.map((name, i) => (
+            {items.map((item, i) => (
               <CommandItem
-                key={name}
+                key={item.key}
                 id={optionId(i)}
-                value={name}
+                value={item.key}
                 onSelect={() => selectMatch(i)}
                 onMouseEnter={() => setHighlightedIndex(i)}
-                className={cn((i === highlightedIndex || name === value) && "bg-accent text-accent-foreground")}
+                className={cn((i === highlightedIndex || item.current) && "bg-accent text-accent-foreground")}
               >
-                {highlightMatch(name, value)}
+                {item.content}
               </CommandItem>
             ))}
           </CommandList>
