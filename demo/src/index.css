@@ -4,6 +4,7 @@
 
 :root {
   /* sage neutrals biased toward the campus greens; ink as primary, brick for focus */
+  /* muted text holds 7:1 (AAA) and --input 3:1 on the panels */
   --background: #fbfcf8;
   --foreground: #1d2620;
   --card: #fbfcf8;
@@ -15,15 +16,17 @@
   --secondary: #eef1ea;
   --secondary-foreground: #1d2620;
   --muted: #eef1ea;
-  --muted-foreground: #5d6b61;
+  --muted-foreground: #3f4b42;
   --accent: #e4e9dc;
   --accent-foreground: #1d2620;
-  --destructive: #c2412b;
+  --destructive: #8f2a18;
   --destructive-foreground: #fbfcf8;
   --border: #d5dccf;
-  --input: #d5dccf;
+  --input: #86918a;
   --ring: #d6452b;
   --radius: 0.6rem;
+  /* surfaces floating over the map: a hairline lift, tinted with the ink */
+  --float-shadow: 0 1px 2px rgb(29 38 32 / 0.12), 0 6px 18px -6px rgb(29 38 32 / 0.22);
 }
 
 .dark {
@@ -38,14 +41,15 @@
   --secondary: #242d26;
   --secondary-foreground: #e3e9e0;
   --muted: #242d26;
-  --muted-foreground: #94a397;
+  --muted-foreground: #b3bfb5;
   --accent: #263a29;
   --accent-foreground: #e3e9e0;
-  --destructive: #ff7a5c;
+  --destructive: #ff9a82;
   --destructive-foreground: #141a16;
   --border: #2e3831;
-  --input: #2e3831;
+  --input: #68756b;
   --ring: #ff7a5c;
+  --float-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 22px -6px rgb(0 0 0 / 0.55);
 }
 
 @theme inline {
@@ -108,8 +112,10 @@ body,
     transform: translateY(0) scale(1);
   }
 }
-.animate-popover-in {
-  animation: popover-in 120ms ease-out;
+@media (prefers-reduced-motion: no-preference) {
+  .animate-popover-in {
+    animation: popover-in 120ms ease-out;
+  }
 }
 
 @keyframes collapsible-down {
@@ -128,11 +134,13 @@ body,
     height: 0;
   }
 }
-[data-slot="collapsible-content"][data-state="open"] {
-  animation: collapsible-down 150ms ease-out;
-}
-[data-slot="collapsible-content"][data-state="closed"] {
-  animation: collapsible-up 150ms ease-out;
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="collapsible-content"][data-state="open"] {
+    animation: collapsible-down 150ms ease-out;
+  }
+  [data-slot="collapsible-content"][data-state="closed"] {
+    animation: collapsible-up 150ms ease-out;
+  }
 }
 
 .food-popup {
@@ -146,19 +154,32 @@ body,
 .maplibregl-popup-content {
   background: var(--popover);
   color: var(--popover-foreground);
-  padding: 10px 28px 10px 12px;
+  padding: 10px 40px 10px 12px;
   border-radius: 8px;
 }
 .maplibregl-popup-close-button {
   color: inherit;
   font-size: 18px;
-  padding: 0 6px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--popover); }
 .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--popover); }
 .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--popover); }
 .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--popover); }
 
+/* MapLibre's built-in controls, in the app's surface and focus styles */
+.maplibregl-ctrl-group:not(:empty) {
+  box-shadow: var(--float-shadow);
+}
+.maplibregl-ctrl-group button:focus:focus-visible,
+.maplibregl-ctrl-attrib-button:focus:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+.maplibregl-ctrl-group button:focus:not(:focus-visible),
+.maplibregl-ctrl-attrib-button:focus:not(:focus-visible) {
+  box-shadow: none;
+}
 /* MapLibre's built-in controls ship light-only */
 .dark .maplibregl-ctrl-group,
 .dark .maplibregl-ctrl-attrib {
@@ -174,4 +195,53 @@ body,
 .dark .maplibregl-ctrl button .maplibregl-ctrl-icon,
 .dark .maplibregl-ctrl-attrib-button {
   filter: invert(1);
+}
+
+/* route start: a ringed dot, a different shape from the destination pin */
+.start-marker {
+  width: 20px;
+  height: 20px;
+  border: 5px solid var(--marker-line);
+  border-radius: 50%;
+  background: var(--marker-fill);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+}
+
+/* a teardrop whose tip is the element's bottom edge (anchor: bottom) */
+.end-marker {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+}
+.end-marker span {
+  position: relative;
+  top: -1px;
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid var(--marker-line);
+  border-radius: 50% 50% 50% 0;
+  background: var(--marker-pin);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+  transform: rotate(-45deg);
+}
+.end-marker span::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--marker-fill);
+}
+
+@media (pointer: coarse) {
+  .maplibregl-ctrl-group button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* the page draws under notches and the home indicator (viewport-fit=cover) */
+.maplibregl-ctrl-bottom-right {
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) 0;
 }

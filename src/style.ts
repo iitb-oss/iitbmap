@@ -10,7 +10,7 @@ import type {
   SymbolLayerSpecification,
 } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
-import { CAMPUS_BBOX, MAP_BG, MAP_BG_DARK, MAX_ZOOM, MIN_ZOOM, STOREY_M } from "./geo";
+import { CAMPUS_BBOX, MAP_BG, MAP_BG_DARK, MAX_ZOOM, MIN_ZOOM, STOREY_M, TILE_MAX_ZOOM } from "./geo";
 import {
   BUILDING_KINDS, BUILDING_LABEL_FILTER, BUILDING_LABEL_LAYER_ID, buildingLabelLayer, BUILDINGS_SOURCE_ID, IITB_BUILDINGS,
   PINNED_LABEL_LAYER_ID, pinnedLabels, PINS_SOURCE_ID,
@@ -52,7 +52,9 @@ export const PALETTE = {
   light: {
     green: "#c7dcb4", parking: "#d5dccf", water: "#a9cfe0", line: "#ffffff", path: "#a39e90",
     building: "#b9b3a6", academic: "#c98a5e", hostel: "#7d8fbf", residence: "#c9c2b2", boundary: "#1d5fd6",
-    pipeline: "#3b9be8",
+    pipeline: "#3b9be8", routeAlt: "#55616b",
+    // the route in the UI's ink, which no map feature uses; the destination pin in the temple-flag saffron
+    route: "#1d2620", pin: "#b85a08", markerFill: "#fbfcf8",
     // landmark roofs, paler than their walls as on the 2014 illustrated campus map
     buildingRoof: "#d3cec4", academicRoof: "#ddb08f", hostelRoof: "#a3b1d6", residenceRoof: "#ddd8cc", saffron: "#ee8a1e",
     court: "#9fb393", courtHard: "#a88a80", pool: "#9cc8d6", poolRim: "#ebe8df", lane: "#fbfaf4",
@@ -60,7 +62,8 @@ export const PALETTE = {
   dark: {
     green: "#263a29", parking: "#2a332c", water: "#1d3b4c", line: "#3a443c", path: "#5c655c",
     building: "#45433d", academic: "#b07450", hostel: "#5e6fa0", residence: "#4a4a42", boundary: "#f2c94c",
-    pipeline: "#4fa8f0",
+    pipeline: "#4fa8f0", routeAlt: "#9aa7b2",
+    route: "#e3e9e0", pin: "#f0952e", markerFill: "#1b221d",
     buildingRoof: "#5a5850", academicRoof: "#c48e6c", hostelRoof: "#7686b4", residenceRoof: "#5e5e55", saffron: "#d97a14",
     court: "#2f4a33", courtHard: "#4d3b36", pool: "#24506a", poolRim: "#5a645c", lane: "#9aa59b",
   },
@@ -420,7 +423,7 @@ export function getCampusStyle(opts: CampusStyleOptions = {}): StyleSpecificatio
         type: "vector",
         tiles: [resolveUrl("tileUrl", opts.tileUrl, DEFAULT_TILE_URL)],
         minzoom: MIN_ZOOM,
-        maxzoom: MAX_ZOOM,
+        maxzoom: TILE_MAX_ZOOM,
         bounds: [CAMPUS_BBOX.lngMin, CAMPUS_BBOX.latMin, CAMPUS_BBOX.lngMax, CAMPUS_BBOX.latMax],
         attribution: ATTRIBUTION,
       },
@@ -466,7 +469,7 @@ export function mergeCampusLayers(style: StyleSpecification, opts: MergeCampusLa
         type: "vector",
         tiles: [resolveUrl("tileUrl", opts.tileUrl, DEFAULT_TILE_URL)],
         minzoom: MIN_ZOOM,
-        maxzoom: MAX_ZOOM,
+        maxzoom: TILE_MAX_ZOOM,
         attribution: ATTRIBUTION,
       },
     },

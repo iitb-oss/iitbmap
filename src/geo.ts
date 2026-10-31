@@ -14,6 +14,8 @@ export const CAMPUS_CENTER: [number, number] = [72.9155, 19.136];
 export const CAMPUS_BBOX = { latMin: 19.115, latMax: 19.157, lngMin: 72.903, lngMax: 72.928 };
 export const MIN_ZOOM = 13;
 export const MAX_ZOOM = 19;
+// z18 tiles hold the z19 features to ~4 cm, so MapLibre overzooms them instead
+export const TILE_MAX_ZOOM = 18;
 /** One storey, in metres. */
 export const STOREY_M = 3.2;
 
@@ -27,4 +29,16 @@ export function inCampusBbox(lat: number, lng: number): boolean {
     lng >= CAMPUS_BBOX.lngMin &&
     lng <= CAMPUS_BBOX.lngMax
   );
+}
+
+export function haversineMeters(a: [number, number], b: [number, number]): number {
+  const R = 6371000;
+  const [lng1, lat1] = a;
+  const [lng2, lat2] = b;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
 }

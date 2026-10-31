@@ -41,3 +41,25 @@ export function groupBuildings(buildings: { name: string; building?: unknown }[]
     names: [...groupByName].filter(([, id]) => id === g.id).map(([name]) => name).sort(byName),
   })).filter((g) => g.names.length > 0);
 }
+
+const FOOD_GROUPS = [
+  { id: "cafe", label: "Cafes", amenities: ["cafe", "juice_bar", "ice_cream"] },
+  { id: "restaurant", label: "Restaurants", amenities: ["restaurant", "fast_food"] },
+  { id: "canteen", label: "Canteens", amenities: ["canteen", "food_court"] },
+  { id: "mess", label: "Messes", amenities: ["mess"] },
+];
+
+/** Food places by kind, each alphabetical; amenities outside FOOD_GROUPS go under Other. */
+export function groupFood(places: { name: string; amenity: string }[]): { id: string; label: string; names: string[] }[] {
+  const known = FOOD_GROUPS.flatMap((g) => g.amenities);
+  return [...FOOD_GROUPS, { id: "other", label: "Other", amenities: [] }]
+    .map(({ id, label, amenities }) => ({
+      id,
+      label,
+      names: places
+        .filter((p) => (id === "other" ? !known.includes(p.amenity) : amenities.includes(p.amenity)))
+        .map((p) => p.name)
+        .sort(byName),
+    }))
+    .filter((g) => g.names.length > 0);
+}

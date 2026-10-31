@@ -4,8 +4,6 @@ import { decodeDigipin } from "./digipin";
 
 export const MY_LOCATION_LABEL = "My current location";
 export const SITE_TITLE = "IIT Bombay Campus Map";
-/** Start/destination markers and the selected route line, in the app and in link previews. */
-export const MARKER_COLORS = { start: "#16a34a", end: "#dc2626", route: "#2563eb" } as const;
 
 // ponytail: food places as ~4 m squares, so they share, route and preview like buildings
 const FOOD_SQUARES: Feature<Polygon>[] = IITB_FOOD.features.map((f) => {
@@ -40,9 +38,10 @@ export function resolvePlace(value: string): [number, number] | undefined {
   return pin && inCampusBbox(pin[1], pin[0]) ? pin : undefined;
 }
 
+/** "250 m, ~3 min walking": metres under a kilometre. */
 export function formatRouteInfo(route: Route, profile: RoutingProfile, sep = ", "): string {
-  const km = route.distanceMeters / 1000;
-  const speedKmh = profile === "walk" ? 5 : 20;
-  const minutes = Math.round((km / speedKmh) * 60);
-  return `${km.toFixed(2)} km${sep}~${minutes} min ${profile === "walk" ? "walking" : "driving"}`;
+  const m = route.distanceMeters;
+  const distance = m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`;
+  const minutes = Math.max(1, Math.round((m / 1000 / (profile === "walk" ? 5 : 20)) * 60));
+  return `${distance}${sep}~${minutes} min ${profile === "walk" ? "walking" : "driving"}`;
 }

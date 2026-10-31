@@ -1,4 +1,5 @@
 import graphs from "./campus-routing.json";
+import { haversineMeters } from "./geo";
 
 export type RoutingProfile = "walk" | "drive";
 
@@ -22,17 +23,6 @@ interface ProfileGraph {
 
 const RAW_GRAPHS = graphs as Record<RoutingProfile, ProfileGraph>;
 
-export function haversineMeters(a: [number, number], b: [number, number]): number {
-  const R = 6371000;
-  const [lng1, lat1] = a;
-  const [lng2, lat2] = b;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
-}
 
 interface Neighbor {
   to: number;
@@ -234,7 +224,7 @@ function turnText(delta: number): string {
 }
 
 /** Turn-by-turn instructions, one per junction where the route bends past STRAIGHT_DEG or changes street. */
-export function routeSteps(route: Route): RouteStep[] {
+export function routeSteps(route: Route, destination?: string): RouteStep[] {
   const pts = route.coordinates;
   // cumulative metres along the route at each point
   const along = [0];
@@ -268,7 +258,7 @@ export function routeSteps(route: Route): RouteStep[] {
     stepStart = j;
   }
   steps[steps.length - 1].distanceMeters = (along[pts.length - 1] - along[stepStart]) * scale;
-  steps.push({ text: "Arrive", distanceMeters: 0, at: pts[pts.length - 1] });
+  steps.push({ text: destination ? `Arrive at ${destination}` : "Arrive", distanceMeters: 0, at: pts[pts.length - 1] });
   return steps;
 }
 

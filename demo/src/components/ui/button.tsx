@@ -16,9 +16,11 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
+        default: "h-9 px-4 py-2 pointer-coarse:h-11",
+        sm: "h-8 rounded-md px-3 text-xs pointer-coarse:h-11",
         icon: "size-11",
+        // full-width labels that may wrap under large text
+        wrap: "h-auto min-h-9 px-4 py-2 whitespace-normal pointer-coarse:min-h-11",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
