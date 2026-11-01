@@ -6,7 +6,7 @@ import { builtUpByName } from "../../../src/buildings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BUILDING_ALIASES } from "@/lib/aliases";
-import { searchNames } from "@/lib/fuzzy";
+import { searchMatches } from "@/lib/fuzzy";
 import { cn } from "@/lib/utils";
 
 interface BuildingListProps {
@@ -59,11 +59,15 @@ export const BuildingList = React.memo(function BuildingList({
     setQuery("");
   };
   const allNames = React.useMemo(() => groups.flatMap((g) => g.names), [groups]);
-  const shown = React.useMemo(() => {
-    if (!query.trim()) return groups;
-    const hits = new Set(searchNames(query, allNames, BUILDING_ALIASES));
-    return groups.map((g) => ({ ...g, names: g.names.filter((n) => hits.has(n)) })).filter((g) => g.names.length);
-  }, [query, groups, allNames]);
+  // name -> matched alias
+  const hits = React.useMemo(
+    () => (query.trim() ? new Map(searchMatches(query, allNames, BUILDING_ALIASES).map((m) => [m.name, m.alias])) : null),
+    [query, allNames],
+  );
+  const shown = React.useMemo(
+    () => (hits ? groups.map((g) => ({ ...g, names: g.names.filter((n) => hits.has(n)) })).filter((g) => g.names.length) : groups),
+    [hits, groups],
+  );
 
   React.useEffect(() => {
     const mq = window.matchMedia(wideQuery);
@@ -184,6 +188,7 @@ export const BuildingList = React.memo(function BuildingList({
               <ul className="px-2 pb-2">
                 {g.names.map((name) => {
                   const area = BUILT_UP.get(name);
+                  const alias = hits?.get(name);
                   const detail = [details.get(name), area && `${Math.round(area).toLocaleString("en-IN")} m²`].filter(Boolean).join(" · ");
                   return (
                     <li key={name}>
@@ -196,7 +201,14 @@ export const BuildingList = React.memo(function BuildingList({
                           name === selected && "bg-accent font-medium",
                         )}
                       >
-                        {name}
+                        {alias ? (
+                          <span className="flex flex-col">
+                            <span className="font-medium">{alias}</span>
+                            <span className="text-xs text-muted-foreground">in {name}</span>
+                          </span>
+                        ) : (
+                          name
+                        )}
                         {detail && (
                           <span
                             className="ml-auto font-mono text-xs tabular-nums text-muted-foreground"

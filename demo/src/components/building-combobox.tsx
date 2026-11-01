@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { searchNames } from "@/lib/fuzzy";
+import { searchMatches } from "@/lib/fuzzy";
 import { BUILDING_ALIASES } from "@/lib/aliases";
 
 function highlightMatch(name: string, query: string): React.ReactNode {
@@ -16,6 +16,15 @@ function highlightMatch(name: string, query: string): React.ReactNode {
       <mark className="bg-transparent font-semibold text-primary">{name.slice(i, i + query.length)}</mark>
       {name.slice(i + query.length)}
     </>
+  );
+}
+
+function twoLine(label: string, detail: string): React.ReactNode {
+  return (
+    <span className="flex flex-col">
+      <span className="font-medium">{label}</span>
+      <span className="text-xs text-muted-foreground">{detail}</span>
+    </span>
   );
 }
 
@@ -49,18 +58,13 @@ export function BuildingCombobox({ id, value, onValueChange, buildingNames, extr
         key: s.key,
         current: false,
         onSelect: s.onSelect,
-        content: (
-          <span className="flex flex-col">
-            <span className="font-medium">{s.label}</span>
-            <span className="text-xs text-muted-foreground">{s.detail}</span>
-          </span>
-        ),
+        content: twoLine(s.label, s.detail),
       })),
-      ...searchNames(value, buildingNames, BUILDING_ALIASES).map((name) => ({
+      ...searchMatches(value, buildingNames, BUILDING_ALIASES).map(({ name, alias }) => ({
         key: name,
         current: name === value,
         onSelect: () => onValueChange(name),
-        content: highlightMatch(name, value),
+        content: alias ? twoLine(alias, `in ${name}`) : highlightMatch(name, value),
       })),
     ],
     [extra, value, buildingNames, onValueChange],

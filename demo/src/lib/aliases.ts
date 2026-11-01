@@ -4,7 +4,7 @@ export const BUILDING_ALIASES: Record<string, string[]> = {
   KReSIT: ["KCDH", "Koita Centre for Digital Health", "Kanwal Rekhi", "CMINDS"],
   "Department of Bio sciences and Bio engineering": ["BSBE", "Biosciences"],
   "Department of Metalurgical and Material Science Engineering": ["MEMS", "Metallurgy"],
-  "Department of Energy Science and Engineering": ["ESE", "DESE", "CCD", "Cafe Coffee Day"],
+  "Department of Energy Science and Engineering": ["ESE", "DESE", "CCD", "Cafe Coffee Day", "ESED", "Environmental Science and Engineering", "Department of Environmental Science and Engineering"],
   Gulmohar: ["Gullu"],
   "Lecture Hall": ["LHC", "Lecture Hall Complex"],
   "Lecture Hall Complex 3": ["LHC3", "LHC 3", "Krishnamurthy Lecture Hall Complex", "Krishnamurthy"],
@@ -16,7 +16,8 @@ export const BUILDING_ALIASES: Record<string, string[]> = {
   "Aerospace Department": ["AE"],
   "Aerospace Engineering (Annex) + HSS": ["HSS", "Humanities", "Humanities and Social Sciences"],
   "Mathematics Department": ["Maths"],
-  "Environmental Science & Engineering": ["ESED"],
+  // opposite CSRE; GESH is on the 2nd floor
+  "Old CESE Building": ["GESH", "Research Hub for Green Energy and Sustainability", "CESE"],
   "Nandan Nilekani Main Building": ["MB"],
   SAC: ["Student Activity Centre"],
   "State Bank of India": ["SBI", "Bank", "ATM"],
@@ -26,7 +27,14 @@ export const BUILDING_ALIASES: Record<string, string[]> = {
   // BETIC is on the 6th floor
   "COPT - Aerospace (New) Department": ["New Aerospace", "Aerospace New", "BETIC", "IITB-ICICI BETIC Hub"],
   // SINE is on the 5th floor
-  "Rahul Bajaj Technology Innovation Centre": ["SINE", "Society for Innovation and Entrepreneurship"],
+  "Rahul Bajaj Technology Innovation Centre": [
+    "SINE",
+    "Society for Innovation and Entrepreneurship",
+    "IRCC",
+    "Industrial Research and Consulting Centre",
+    "Industrial Design Centre",
+    "Quantum Cafe",
+  ],
   AB1: ["Academic Building 1"],
   AB2: ["Academic Building 2"],
   "Fire and Safety Department": ["Fire Station", "Fire Brigade"],

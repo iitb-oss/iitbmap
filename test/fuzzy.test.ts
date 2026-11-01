@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { searchNames } from "../demo/src/lib/fuzzy";
+import { searchMatches, searchNames } from "../demo/src/lib/fuzzy";
 import { BUILDING_ALIASES } from "../demo/src/lib/aliases";
 import { IITB_BUILDINGS } from "../src/buildings";
 import { PLACE_NAMES } from "../demo/src/lib/places";
@@ -59,5 +59,21 @@ describe("searchNames", () => {
   it("does not match unrelated words", () => {
     expect(searchNames("zzzz", names)).toEqual([]);
     expect(searchNames("", names)).toEqual([]);
+  });
+});
+
+describe("searchMatches", () => {
+  const rbtic = "Rahul Bajaj Technology Innovation Centre";
+  const hit = (q: string, name: string) => searchMatches(q, PLACE_NAMES, BUILDING_ALIASES).find((m) => m.name === name);
+  it("names the alias that found a building", () => {
+    expect(hit("IRCC", rbtic)?.alias).toBe("IRCC");
+    expect(hit("sine", rbtic)?.alias).toBe("SINE");
+    expect(hit("quantam", rbtic)?.alias).toBe("Quantum Cafe"); // typo
+    expect(hit("ESED", "Department of Energy Science and Engineering")?.alias).toBe("ESED");
+    expect(searchMatches("ESED", PLACE_NAMES, BUILDING_ALIASES)[0].name).toBe("Department of Energy Science and Engineering");
+  });
+  it("stays quiet when the name itself matches", () => {
+    expect(hit("rahul", rbtic)?.alias).toBeUndefined();
+    expect(hit("H5", "Hostel 5")?.alias).toBeUndefined();
   });
 });

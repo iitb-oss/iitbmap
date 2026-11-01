@@ -31,12 +31,18 @@ const splitDigits = (s: string) => s.replace(/(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])/
 const NO_ALIASES: Record<string, string[]> = {};
 const STOPWORDS = new Set(["of", "and", "for", "the", "in", "no"]);
 
+// "Lecture Hall Complex" -> "lecturehallcomplex"
+const squash = (s: string) => normalize(s).replace(/ /g, "");
+
 interface Entry {
   name: string;
   full: string; // normalized name, letters and digits apart
   words: string[]; // matched with typo tolerance
   codes: string[]; // initialisms and aliases; exact prefix only, typos on short codes match everything
   aliases: string[]; // hand-written, so an exact match outranks an initialism
+  nameWords: string[]; // name only, to spot alias-only matches
+  nameCodes: string[];
+  aliasList: { text: string; words: string[]; code: string }[];
 }
 
 function toEntry(name: string, aliases: string[]): Entry {
@@ -46,20 +52,45 @@ function toEntry(name: string, aliases: string[]): Entry {
   const initials = words.filter((w) => !STOPWORDS.has(w)).map((w) => (/^\d/.test(w) ? w : w[0])).join(""); // "Hostel 12" -> "h12"
   // every suffix, so "ese" matches as well as "dese"
   const codes = [...initials].map((_, i) => initials.slice(i)).filter((c) => c.length >= 2);
-  const aliasWords = aliases.flatMap((a) => splitDigits(normalize(a)).split(" "));
-  const aliasCodes = aliases.map((a) => normalize(a).replace(/ /g, ""));
+  const aliasList = aliases.map((text) => ({ text, words: splitDigits(normalize(text)).split(" "), code: squash(text) }));
+  const aliasCodes = aliasList.map((a) => a.code);
   // campus shorthand: "H5" is Hostel 5 and its wings
   const hostel = full.match(/^(?:hostel (?:no )?|h )(\d+) ?[a-d]?(?: wing(?: [a-d])?)?$/);
-  if (hostel) aliasCodes.push(`h${hostel[1]}`);
+  if (hostel) codes.push(`h${hostel[1]}`);
   // "H 15 Wing B" names a hostel too
   if (hostel && !full.startsWith("hostel")) parts.push("hostel");
-  return { name, full: splitDigits(full), words: [...parts, ...aliasWords], codes: [...codes, ...aliasCodes], aliases: aliasCodes };
+  return {
+    name,
+    full: splitDigits(full),
+    words: [...parts, ...aliasList.flatMap((a) => a.words)],
+    codes: [...codes, ...aliasCodes],
+    aliases: hostel ? [...aliasCodes, `h${hostel[1]}`] : aliasCodes,
+    nameWords: parts,
+    nameCodes: codes,
+    aliasList,
+  };
+}
+
+/** Summed typo cost; Infinity when any typed word misses. */
+function matchCost(typed: string[], words: string[], codes: string[]): number {
+  let cost = 0;
+  for (const t of typed) {
+    const best = codes.some((c) => c.startsWith(t)) ? 0 : Math.min(...words.map((w) => wordCost(t, w)));
+    if (best > allowedTypos(t)) return Infinity;
+    cost += best;
+  }
+  return cost;
 }
 
 const entryCache = new WeakMap<string[], { aliases: Record<string, string[]>; entries: Entry[] }>();
 
+export interface NameMatch {
+  name: string;
+  alias?: string; // set on alias-only matches
+}
+
 /** Names matching query, best first; each typed word must hit a name word (with typos), an initialism or an alias. */
-export function searchNames(query: string, names: string[], aliases: Record<string, string[]> = NO_ALIASES): string[] {
+export function searchMatches(query: string, names: string[], aliases: Record<string, string[]> = NO_ALIASES): NameMatch[] {
   const q = normalize(query);
   if (!q) return [];
   let cached = entryCache.get(names);
@@ -68,25 +99,27 @@ export function searchNames(query: string, names: string[], aliases: Record<stri
     entryCache.set(names, cached);
   }
   const { entries } = cached;
-  const code = q.replace(/ /g, "");
+  const code = squash(query);
   const spaced = splitDigits(q);
   const typed = spaced.split(" ");
-  const scored: { name: string; tier: number; cost: number }[] = [];
+  const scored: { e: Entry; tier: number; cost: number }[] = [];
   for (const e of entries) {
+    const cost = matchCost(typed, e.words, e.codes);
+    if (cost === Infinity) continue;
     const tier = e.aliases.includes(code) ? 0 : e.codes.includes(code) ? 1 : e.full.includes(spaced) ? 2 : 3;
-    let cost = 0;
-    for (const t of typed) {
-      const best = e.codes.some((c) => c.startsWith(t)) ? 0 : Math.min(...e.words.map((w) => wordCost(t, w)));
-      if (best > allowedTypos(t)) {
-        cost = Infinity;
-        break;
-      }
-      cost += best;
-    }
-    if (cost !== Infinity) scored.push({ name: e.name, tier, cost });
+    scored.push({ e, tier, cost });
   }
   return scored
-    .sort((a, b) => a.tier - b.tier || a.cost - b.cost || a.name.length - b.name.length)
+    .sort((a, b) => a.tier - b.tier || a.cost - b.cost || a.e.name.length - b.e.name.length)
     .slice(0, 8)
-    .map((s) => s.name);
+    .map(({ e }) => ({ name: e.name, alias: aliasFor(e, typed, code) }));
 }
+
+/** Alias-only matches; an exact alias wins over a fuzzy one. */
+function aliasFor(e: Entry, typed: string[], code: string): string | undefined {
+  if (!e.aliasList.length || matchCost(typed, e.nameWords, e.nameCodes) !== Infinity) return undefined;
+  return (e.aliasList.find((a) => a.code === code) ?? e.aliasList.find((a) => matchCost(typed, a.words, [a.code]) !== Infinity))?.text;
+}
+
+export const searchNames = (query: string, names: string[], aliases?: Record<string, string[]>): string[] =>
+  searchMatches(query, names, aliases).map((m) => m.name);
