@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://saket-choudhary.me/iitbmap/sitemap.xml

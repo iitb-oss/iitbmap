@@ -3,7 +3,7 @@ main = "index.ts"
 compatibility_date = "2026-09-01"
 
 [vars]
-APP_URL = "https://saket-choudhary.me/iitbmap/"
+APP_URL = "https://iitb-oss.github.io/iitbmap/"
 
 # Inter for the preview text (resvg-wasm has no system fonts).
 [[rules]]

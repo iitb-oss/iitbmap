@@ -1,10 +1,30 @@
 @import "tailwindcss";
 
+/* self-hosted for offline (Google Fonts, OFL); cut to the weights below and opsz 16, so a new weight needs a recut */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-weight: 600;
+  font-display: swap;
+  src: url("/webfonts/bricolage-grotesque.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/webfonts/ibm-plex-sans.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-weight: 400;
+  font-display: swap;
+  src: url("/webfonts/ibm-plex-mono.woff2") format("woff2");
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   /* sage neutrals biased toward the campus greens; ink as primary, brick for focus */
-  /* muted text holds 7:1 (AAA) and --input 3:1 on the panels */
+  /* muted text holds 7:1 (AAA); --input holds 3.9:1 on every panel, for field edges in sunlight */
   --background: #fbfcf8;
   --foreground: #1d2620;
   --card: #fbfcf8;
@@ -22,7 +42,7 @@
   --destructive: #8f2a18;
   --destructive-foreground: #fbfcf8;
   --border: #d5dccf;
-  --input: #86918a;
+  --input: #6f7a73;
   --ring: #d6452b;
   --radius: 0.6rem;
   /* surfaces floating over the map: a hairline lift, tinted with the ink */
@@ -47,7 +67,7 @@
   --destructive: #ff9a82;
   --destructive-foreground: #141a16;
   --border: #2e3831;
-  --input: #68756b;
+  --input: #7d8a80;
   --ring: #ff7a5c;
   --float-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 22px -6px rgb(0 0 0 / 0.55);
 }
@@ -85,8 +105,15 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* inherits to all text */
   body {
     @apply bg-background text-foreground;
+    text-wrap: pretty;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
 }
 

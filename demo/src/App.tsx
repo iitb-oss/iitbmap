@@ -41,7 +41,7 @@ import { applySheet } from "@/lib/sheet";
 import { EDIT_ENABLED, downloadEdits, loadEdits, saveEdits } from "@/lib/edits";
 import { drawDraft, installEditor } from "@/lib/editor";
 import { EditPanel } from "@/components/edit-panel";
-import { MY_LOCATION_LABEL, PLACE_NAMES, findPlace, findPlaceCentroid, formatRouteInfo, resolvePlace } from "@/lib/places";
+import { MY_LOCATION_LABEL, PLACE_NAMES, findPlace, findPlaceCentroid, unresolvedMessage, formatRouteInfo, resolvePlace } from "@/lib/places";
 import { haversineMeters } from "../../src/geo";
 import { PALETTE } from "../../src/style";
 
@@ -131,8 +131,6 @@ interface RouteState {
   routes: Route[];
   selectedIndex: number;
 }
-
-const unknownPlace = (value: string) => `No place called "${value.trim()}". Pick one from the list, or type a DIGIPIN.`;
 
 function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -521,11 +519,11 @@ export default function App() {
 
     const to = toPlace;
     if (!fromPlace) {
-      if (!fromIsMe) setError(unknownPlace(fromValue)); // waiting for a GPS fix isn't an error
+      if (!fromIsMe) setError(unresolvedMessage(fromValue)); // waiting for a GPS fix isn't an error
       return;
     }
     if (!to) {
-      setError(unknownPlace(toValue));
+      setError(unresolvedMessage(toValue));
       return;
     }
 
@@ -1028,7 +1026,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             {/* blue on transparent; the white backing keeps it legible in dark mode */}
             <img src={`${import.meta.env.BASE_URL}iitb-logo.svg`} alt="IIT Bombay logo" className="size-9 shrink-0 rounded-md bg-white p-0.5" />
-            <span className="min-w-0 flex-1 text-sm font-semibold leading-tight break-words">IIT Bombay Campus Map</span>
+            <h1 className="min-w-0 flex-1 text-sm font-semibold leading-tight break-words">IIT Bombay Campus Map</h1>
             {(installPrompt || INSTALL_HINT) && (
               <Button
                 variant="ghost"
@@ -1163,6 +1161,12 @@ export default function App() {
                     </li>
                   ))}
                 </ul>
+              )}
+              {!toValue.trim() && (
+                <p className="-mt-1 px-1 text-xs text-muted-foreground">
+                  <span className="pointer-coarse:hidden">Right-click</span>
+                  <span className="hidden pointer-coarse:inline">Press and hold</span> the map to drop a pin there.
+                </p>
               )}
               {/* a dropped pin's To already is its DIGIPIN */}
               {shownRoom && (

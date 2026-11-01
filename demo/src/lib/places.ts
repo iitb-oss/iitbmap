@@ -38,6 +38,14 @@ export function resolvePlace(value: string): [number, number] | undefined {
   return pin && inCampusBbox(pin[1], pin[0]) ? pin : undefined;
 }
 
+/** Why resolvePlace found nothing, worded for the error line. */
+export function unresolvedMessage(value: string): string {
+  const pin = decodeDigipin(value);
+  return pin && !inCampusBbox(pin[1], pin[0])
+    ? `DIGIPIN ${value.trim().toUpperCase()} is outside IIT Bombay. The map covers the campus only.`
+    : `No place called "${value.trim()}". Pick one from the list, or type a DIGIPIN.`;
+}
+
 /** "250 m, ~3 min walking": metres under a kilometre. */
 export function formatRouteInfo(route: Route, profile: RoutingProfile, sep = ", "): string {
   const m = route.distanceMeters;
