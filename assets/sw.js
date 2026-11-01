@@ -5,8 +5,8 @@ const tileCache = caches.open(TILE_CACHE);
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
-  // the offline fallback for pages never visited
-  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.add(self.registration.scope)).catch(() => {}));
+  // the offline fallback for pages never visited, and the reach page
+  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll([self.registration.scope, self.registration.scope + "reach/"])).catch(() => {}));
 });
 
 self.addEventListener("activate", (event) => {

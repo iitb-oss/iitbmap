@@ -16,7 +16,8 @@ function loadHints(): Plugin {
     name: "load-hints",
     apply: "build",
     configResolved: (config) => void (base = config.base),
-    transformIndexHtml: (_html, { bundle }) => {
+    transformIndexHtml: (_html, { bundle, path: page }) => {
+      if (page !== "/index.html") return []; // the static reach page never loads the map
       const chunk = Object.values(bundle ?? {}).find((c) => c.type === "chunk" && c.name === "maplibre-gl");
       if (!chunk) return [];
       return [
@@ -39,5 +40,6 @@ export default defineConfig({
   define: { "import.meta.env.VITE_LOCAL_TILES": JSON.stringify(fs.existsSync(path.resolve(__dirname, "assets/tiles"))) },
   plugins: [react(), tailwindcss(), loadHints(), sharePages()],
   resolve: { alias: { "@": path.resolve(__dirname, "demo/src") } },
+  build: { rollupOptions: { input: { main: path.resolve(__dirname, "demo/index.html"), reach: path.resolve(__dirname, "demo/reach/index.html") } } },
   // no manualChunks: it pulls rollup's shared helpers into maplibre-gl, which then loads before the panel
 });

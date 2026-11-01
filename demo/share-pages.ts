@@ -58,6 +58,8 @@ function llmsTxt(siteUrl: string, places: string[]): string {
 - A place: ${page} (each place below has its own page with a map preview).
 - Directions: \`from\`, \`to\` and \`profile=walk\` (or \`drive\`, which respects one-way roads), for example ${route}. A place is a name from the list below or a DIGIPIN on campus.
 - A room in a building: add \`room=<room number>\`, for example ${placeLink(siteUrl, ex.to, ex.room).href}.
+- How to reach IIT Bombay (airports, metro, train, bus, auto, fares): ${siteUrl}reach/, with a walking route from the Main Gate via \`?to=<place>\`.
+- Embed the map in a page: \`<iframe src="${siteUrl}b/<slug>/?embed">\`.
 - [Sitemap](${siteUrl}sitemap.xml)
 - [Source code](https://github.com/iitb-oss/iitbmap)
 
@@ -79,13 +81,18 @@ export function sharePages(): Plugin {
     },
     async closeBundle() {
       const shell = fs.readFileSync(path.join(outDir, "index.html"), "utf8");
+      const reach = fs.readFileSync(path.join(outDir, "reach", "index.html"), "utf8");
+      const gate = reach.match(/data-from="([^"]+)"/)?.[1] ?? "";
+      if (!findPlace(gate) || !reach.includes(`../${buildingPath(gate)}`)) throw new Error(`share-pages: reach/index.html gate "${gate}" is not a place or its link is not ../${buildingPath(gate)}`);
       if (!META_BLOCK.test(shell)) throw new Error("share-pages: index.html has no <!-- share-meta --> block");
       if (!shell.includes(ROOT)) throw new Error(`share-pages: index.html has no ${ROOT}`);
       const siteUrl = shell.match(/<link rel="canonical" href="([^"]+)"/)![1];
+      if (!reach.includes(`<link rel="canonical" href="${siteUrl}reach/" />`)) throw new Error(`share-pages: reach/index.html canonical is not ${siteUrl}reach/`);
+      const reachUrl = `${siteUrl}reach/`;
 
       const jobs: (() => Promise<void>)[] = [];
       const seen = new Set<string>();
-      const urls = [siteUrl];
+      const urls = [siteUrl, reachUrl];
       const places: string[] = [];
       for (const name of PLACE_NAMES) {
         const slug = buildingSlug(name);
@@ -111,7 +118,7 @@ export function sharePages(): Plugin {
         const dir = path.join(outDir, buildingPath(name));
         fs.mkdirSync(dir, { recursive: true });
         // text for crawlers that skip JS; createRoot replaces it on load
-        const body = ROOT.replace("></", `><h1>${esc(name)}, IIT Bombay</h1><p>${esc(description)}</p></`);
+        const body = ROOT.replace("></", `><h1>${esc(name)}, IIT Bombay</h1><p>${esc(description)}</p><p><a href="${reachUrl}">How to reach IIT Bombay</a></p></`);
         const html = shell.replace(META_BLOCK, `${meta}\n  ${placeJsonLd(name, url, centroid)}`).replace(ROOT, body);
         fs.writeFileSync(path.join(dir, "index.html"), html);
         urls.push(url);

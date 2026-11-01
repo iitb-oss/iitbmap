@@ -1,6 +1,6 @@
 import * as React from "react";
 import type maplibregl from "maplibre-gl";
-import { ArrowUpDown, Car, ChevronDown, Clock, CloudDownload, Download, Flag, Footprints, MapPin, Navigation, Settings, Share2, Star, Utensils, X } from "lucide-react";
+import { ArrowUpDown, Car, ChevronDown, Clock, CloudDownload, Download, Flag, Footprints, MapPin, Navigation, Settings, Share2, Star, TrainFront, Utensils, X } from "lucide-react";
 
 import {
   getCampusStyle,
@@ -120,6 +120,13 @@ const isFoodOnly = (shown: string[]) => shown.length === 1 && shown[0] === "food
 const START_URL = new URL(window.location.href);
 // a shared room ("room=A906"), reopened once the room index loads
 const START_ROOM = START_URL.searchParams.get("room");
+// ?embed: map only, for an <iframe> on another site; the badge opens the full app
+const EMBED = START_URL.searchParams.has("embed");
+const FULL_URL = (() => {
+  const url = new URL(START_URL);
+  url.searchParams.delete("embed");
+  return url.href;
+})();
 
 // Opened via a /b/<slug>/ share page: that place is the destination.
 const sharedPlace = (() => {
@@ -167,7 +174,7 @@ function setCaption(marker: maplibregl.Marker, caption: Caption | null, name = "
 }
 
 type ThemePref = "system" | "light" | "dark";
-// key shared with the inline script in index.html
+// key shared with the inline scripts in index.html and reach/index.html
 const THEME_KEY = "iitbmap-theme";
 const DARK_QUERY = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -626,6 +633,8 @@ export default function App() {
         minZoom: MIN_ZOOM,
         maxZoom: MAX_ZOOM,
         maxBounds: CAMPUS_MAX_BOUNDS,
+        // in a host page, plain scroll and one-finger drag scroll the page
+        cooperativeGestures: EMBED,
       });
       mapRef.current = map;
       removeMap = () => map.remove();
@@ -701,7 +710,8 @@ export default function App() {
       // Auto-track only on campus: off campus the camera would follow the user off the map.
       map.once("load", () => {
         // tracking would pull the camera off a shared place or route; the location button still starts it
-        if ((sharedPlace || START_URL.searchParams.has("to")) && readSharedRoute(START_URL)?.from !== MY_LOCATION_LABEL) return;
+        // an embed never prompts for location unasked
+        if (EMBED || ((sharedPlace || START_URL.searchParams.has("to")) && readSharedRoute(START_URL)?.from !== MY_LOCATION_LABEL)) return;
         navigator.geolocation?.getCurrentPosition(
           (pos) => {
             if (inCampusBbox(pos.coords.latitude, pos.coords.longitude)) geolocate.trigger();
@@ -857,7 +867,7 @@ export default function App() {
 
   // Service worker registration, production only (avoids fighting Vite's dev HMR).
   React.useEffect(() => {
-    if (!import.meta.env.DEV && "serviceWorker" in navigator) {
+    if (!EMBED && !import.meta.env.DEV && "serviceWorker" in navigator) {
       navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
     }
   }, []);
@@ -939,7 +949,7 @@ export default function App() {
   }, [roomFloor, buildings3d, dark, mapReady]);
   // after a pause, so names passed while typing aren't kept
   React.useEffect(() => {
-    if (!toName) return;
+    if (!toName || EMBED) return;
     const timer = setTimeout(() => updatePlaces((p) => addRecent(p, toName)), 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1009,6 +1019,24 @@ export default function App() {
     if (!myLocation) geolocateRef.current?.trigger();
   }
 
+  const mapEl = <main id="map" ref={mapContainerRef} aria-label="Campus map" />;
+  if (EMBED)
+    return (
+      <>
+        <a
+          href={FULL_URL}
+          target="_blank"
+          rel="noopener"
+          className="absolute z-10 flex min-h-11 items-center gap-2 rounded-lg bg-card px-3 text-sm font-medium text-card-foreground shadow-[var(--float-shadow)] focus-visible:outline-2 focus-visible:outline-ring"
+          style={{ top: 12, left: 12 }}
+        >
+          <img src={`${import.meta.env.BASE_URL}iitb-logo.svg`} alt="" className="size-6 rounded bg-white p-0.5" />
+          Open IIT Bombay Campus Map
+        </a>
+        {mapEl}
+      </>
+    );
+
   return (
     <>
       <Card
@@ -1027,6 +1055,12 @@ export default function App() {
             {/* blue on transparent; the white backing keeps it legible in dark mode */}
             <img src={`${import.meta.env.BASE_URL}iitb-logo.svg`} alt="IIT Bombay logo" className="size-9 shrink-0 rounded-md bg-white p-0.5" />
             <h1 className="min-w-0 flex-1 text-sm font-semibold leading-tight break-words">IIT Bombay Campus Map</h1>
+            <Button variant="ghost" size="sm" className="shrink-0" asChild>
+              <a href={`${import.meta.env.BASE_URL}reach/${toName ? `?to=${encodeURIComponent(toName)}` : ""}`}>
+                <TrainFront className="size-4" />
+                Getting here
+              </a>
+            </Button>
             {(installPrompt || INSTALL_HINT) && (
               <Button
                 variant="ghost"
@@ -1443,7 +1477,7 @@ export default function App() {
       ) : (
         <BuildingList key="buildings" groups={listGroups} details={buildingStoreys} selected={toValue.trim()} dark={dark} wideQuery={WIDE_SCREEN} onPick={setToValue} />
       )}
-      <main id="map" ref={mapContainerRef} aria-label="Campus map" />
+      {mapEl}
     </>
   );
 }
