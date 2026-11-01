@@ -6,6 +6,7 @@ import { Command, CommandList, CommandEmpty, CommandItem } from "@/components/ui
 import { cn } from "@/lib/utils";
 import { searchMatches } from "@/lib/fuzzy";
 import { BUILDING_ALIASES } from "@/lib/aliases";
+import { officeHit, roomDetail } from "@/lib/rooms";
 
 function highlightMatch(name: string, query: string): React.ReactNode {
   const i = name.toLowerCase().indexOf(query.toLowerCase());
@@ -40,6 +41,8 @@ interface BuildingComboboxProps {
   id?: string;
   value: string;
   onValueChange: (value: string) => void;
+  /** after onValueChange, when the pick matched by an alias */
+  onAliasPick?: (alias: string) => void;
   buildingNames: string[];
   extra?: ExtraSuggestion[];
   placeholder?: string;
@@ -48,7 +51,12 @@ interface BuildingComboboxProps {
 
 const NO_EXTRA: ExtraSuggestion[] = [];
 
-export function BuildingCombobox({ id, value, onValueChange, buildingNames, extra = NO_EXTRA, placeholder, className }: BuildingComboboxProps) {
+const officeDetail = (alias: string) => {
+  const hit = officeHit(alias);
+  return hit && roomDetail(hit);
+};
+
+export function BuildingCombobox({ id, value, onValueChange, onAliasPick, buildingNames, extra = NO_EXTRA, placeholder, className }: BuildingComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [highlightedIndex, setHighlightedIndex] = React.useState(0);
 
@@ -63,11 +71,14 @@ export function BuildingCombobox({ id, value, onValueChange, buildingNames, extr
       ...searchMatches(value, buildingNames, BUILDING_ALIASES).map(({ name, alias }) => ({
         key: name,
         current: name === value,
-        onSelect: () => onValueChange(name),
-        content: alias ? twoLine(alias, `in ${name}`) : highlightMatch(name, value),
+        onSelect: () => {
+          onValueChange(name);
+          if (alias) onAliasPick?.(alias);
+        },
+        content: alias ? twoLine(alias, `in ${officeDetail(alias) ?? name}`) : highlightMatch(name, value),
       })),
     ],
-    [extra, value, buildingNames, onValueChange],
+    [extra, value, buildingNames, onValueChange, onAliasPick],
   );
   const showPopover = open && items.length > 0;
 

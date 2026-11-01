@@ -31,10 +31,10 @@ import {
   type RoutingProfile,
 } from "../../src/index";
 import { readSharedRoute, routeLink, writeSharedRoute, type SharedRoute } from "@/lib/route-url";
-import { buildingPath, buildingSlug, slugFromPathname } from "@/lib/building-url";
+import { buildingSlug, placeLink, slugFromPathname } from "@/lib/building-url";
 import { decodeDigipin, encodeDigipin } from "@/lib/digipin";
 import { saveOffline, tilesIn } from "@/lib/offline";
-import { BOOKING_URL, findRooms, floorBand, roomDetail, roomIndex, roomsByFloor, type RoomData, type RoomHit, type RoomIndex } from "@/lib/rooms";
+import { BOOKING_URL, findRoomHit, findRooms, floorBand, officeHit, roomDetail, roomTitle, roomIndex, roomsByFloor, type RoomData, type RoomHit, type RoomIndex } from "@/lib/rooms";
 import { addRecent, loadPlaces, storePlaces, toggleSaved } from "@/lib/saved-places";
 import { foodPopup } from "@/lib/food-popup";
 import { applySheet } from "@/lib/sheet";
@@ -139,7 +139,7 @@ function toErrorMessage(err: unknown): string {
 }
 
 /** Start is a ringed dot and the destination a pin, so they differ in shape as well as colour; the theme effect sets the colours. */
-function setMarker(map: maplibregl.Map, marker: maplibregl.Marker | null, coords: [number, number], kind: "start" | "end", name: string): maplibregl.Marker {
+function setMarker(map: maplibregl.Map, marker: maplibregl.Marker | null, coords: [number, number], kind: "start" | "end", name: string, caption: Caption | null = null): maplibregl.Marker {
   if (marker) {
     marker.setLngLat(coords);
   } else {
@@ -149,8 +149,23 @@ function setMarker(map: maplibregl.Map, marker: maplibregl.Marker | null, coords
   }
   const el = marker.getElement();
   el.setAttribute("role", "img");
-  el.setAttribute("aria-label", `${kind === "start" ? "Start" : "Destination"}: ${name}`);
+  if (kind === "end") setCaption(marker, caption, name);
+  else el.setAttribute("aria-label", `Start: ${name}`);
   return marker;
+}
+
+/** The destination pin's caption: what was picked, then its floor, storeys, seats or hours. */
+type Caption = [title: string, detail: string];
+function setCaption(marker: maplibregl.Marker, caption: Caption | null, name = "") {
+  const el = marker.getElement();
+  el.querySelector(".marker-caption")?.remove();
+  el.setAttribute("aria-label", `Destination: ${caption ? caption.filter(Boolean).join(", ") : name}`);
+  if (!caption) return;
+  const box = Object.assign(document.createElement("div"), { className: "marker-caption" });
+  const [title, detail] = caption;
+  box.append(Object.assign(document.createElement("strong"), { textContent: title }));
+  if (detail) box.append(Object.assign(document.createElement("small"), { textContent: detail }));
+  el.append(box);
 }
 
 type ThemePref = "system" | "light" | "dark";
@@ -434,9 +449,13 @@ export default function App() {
 
   const fromIsMe = fromValue.trim() === MY_LOCATION_LABEL;
   const fromPlace = fromIsMe ? myLocation : resolvePlace(fromValue);
-  const toPlace = resolvePlace(toValue);
+  const toName = findPlace(toValue)?.properties?.name as string | undefined;
+  // a picked room or office, shown while To is still its building
+  const [room, setRoom] = React.useState<RoomHit | null>(null);
+  const shownRoom = room && room.building === toName ? room : null;
+  const toPlace = shownRoom?.at ?? resolvePlace(toValue);
   const appBase = new URL(import.meta.env.BASE_URL, window.location.origin);
-  const sharedRoute = (routeIndex: number): SharedRoute => ({ from: fromValue.trim(), to: toValue.trim(), profile, routeIndex });
+  const sharedRoute = (routeIndex: number): SharedRoute => ({ from: fromValue.trim(), to: toValue.trim(), profile, routeIndex, room: shownRoom?.room });
 
   const pushRouteUrl = (routeIndex: number) => {
     window.history.pushState(null, "", routeLink(appBase, sharedRoute(routeIndex)));
@@ -444,15 +463,18 @@ export default function App() {
 
   // route links use the share Worker when configured, so the preview shows the route
   // a picked room rides along as "room=", so the link reopens it
-  const shareUrl = () => {
-    const url = placeOrRouteUrl();
-    if (shownRoom) url.searchParams.set("room", shownRoom.room);
-    return url.href;
-  };
+  const shareUrl = () => placeOrRouteUrl().href;
   const placeOrRouteUrl = (): URL => {
     const worker = import.meta.env.VITE_SHARE_URL;
     if (routeState.routes.length === 0) {
-      if (findPlaceCentroid(toValue)) return new URL(buildingPath(toValue.trim()), appBase);
+      if (findPlaceCentroid(toValue)) {
+        // with a room, the Worker's preview names it; static pages know only the building
+        if (!shownRoom || !worker) return placeLink(appBase, toValue.trim(), shownRoom?.room);
+        const url = new URL("p", worker);
+        url.searchParams.set("to", toValue.trim());
+        url.searchParams.set("room", shownRoom.room);
+        return url;
+      }
       const url = new URL(appBase);
       if (decodeDigipin(toValue)) url.searchParams.set("to", toValue.trim());
       return url;
@@ -521,7 +543,7 @@ export default function App() {
     if (!(document.activeElement instanceof HTMLInputElement)) foldOnPhone();
 
     fromMarkerRef.current = setMarker(map, fromMarkerRef.current, fromPlace, "start", fromIsMe ? "your location" : fromValue.trim());
-    toMarkerRef.current = setMarker(map, toMarkerRef.current, to, "end", toValue.trim());
+    toMarkerRef.current = setMarker(map, toMarkerRef.current, to, "end", toValue.trim(), caption);
 
     // after the panel folds, so the fit uses the space it frees
     if (fit) requestAnimationFrame(() => fitClear(map, found.flatMap((r) => r.coordinates)));
@@ -642,7 +664,7 @@ export default function App() {
       };
       map.once("load", collapseAttribution);
       map.on("resize", collapseAttribution);
-      if (sharedCentroid) toMarkerRef.current = setMarker(map, null, sharedCentroid, "end", sharedPlace!);
+      if (sharedCentroid) toMarkerRef.current = setMarker(map, null, sharedCentroid, "end", sharedPlace!, caption);
 
       const geolocate = new MapLibre.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
@@ -824,16 +846,16 @@ export default function App() {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [directions, profile, fromValue, toValue, routing]);
+  }, [directions, profile, fromValue, toValue, routing, shownRoom?.room]);
 
   // computeRoute owns the camera in directions mode
   React.useEffect(() => {
     const map = mapRef.current;
     if (directions || !map || !toPlace) return;
-    toMarkerRef.current = setMarker(map, toMarkerRef.current, toPlace, "end", toValue.trim());
+    toMarkerRef.current = setMarker(map, toMarkerRef.current, toPlace, "end", toValue.trim(), caption);
     map.flyTo({ center: toPlace, zoom: Math.max(map.getZoom(), 17) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toValue, directions, mapReady]);
+  }, [toValue, directions, mapReady, shownRoom?.room]);
 
   // Service worker registration, production only (avoids fighting Vite's dev HMR).
   React.useEffect(() => {
@@ -863,18 +885,16 @@ export default function App() {
       storePlaces(next);
       return next;
     });
-  const toName = findPlace(toValue)?.properties?.name as string | undefined;
 
   // room numbers: their own chunk, fetched once a query has a digit or a building is picked
   const [rooms, setRooms] = React.useState<RoomIndex | null>(null);
-  const [room, setRoom] = React.useState<RoomHit | null>(null);
   const wantsRooms = /\d/.test(toValue) && !toName;
   React.useEffect(() => {
     if ((wantsRooms || START_ROOM || toName) && !rooms) {
       import("../../src/iitb-rooms.json").then((m) => {
         const index = roomIndex(m.default as RoomData);
         setRooms(index);
-        const hit = START_ROOM && findRooms(index, START_ROOM).find((h) => h.room === START_ROOM && h.building === toName);
+        const hit = START_ROOM && findRoomHit(index, START_ROOM, toName);
         if (hit) setRoom(hit);
       });
     }
@@ -894,14 +914,22 @@ export default function App() {
         : [],
     [rooms, wantsRooms, toValue],
   );
+  const pickOffice = React.useCallback((alias: string) => setRoom(officeHit(alias)), []);
   const roomGroups = React.useMemo(() => (rooms && toName ? roomsByFloor(rooms, toName) : []), [rooms, toName]);
-  // the room stays shown while To is still its building
-  const shownRoom = room && room.building === toName ? room : null;
   // a room whose wing isn't known gets no band; it could name the wrong wing
   const roomFloor = React.useMemo(() => {
     const building = shownRoom && shownRoom.label === shownRoom.building && findPlace(shownRoom.building);
     return building ? floorBand(building, shownRoom.floor, STOREY_M) : null;
   }, [shownRoom]);
+  const caption = React.useMemo<Caption | null>(() => {
+    if (shownRoom) return [roomTitle(shownRoom), roomDetail(shownRoom)];
+    if (toName) return [toName, foodDetails.get(toName) || buildingStoreys.get(toName) || ""];
+    // half-typed text would label the previous pin
+    return decodeDigipin(toValue) ? [toValue.trim(), ""] : null;
+  }, [toValue, toName, shownRoom, foodDetails, buildingStoreys]);
+  React.useEffect(() => {
+    if (toMarkerRef.current) setCaption(toMarkerRef.current, caption);
+  }, [caption]);
   // Bridges into MapLibre's persistent `style.load` listener, which is registered once
   // and would otherwise only ever see the state from the render it was created in.
   const latest = { fromValue, toValue, routeState, shown, buildings3d, recomputeRoute, dark, editing, drawing, pinLabel, addBuilding, moveFood, roomFloor };
@@ -1094,6 +1122,7 @@ export default function App() {
                   id="toInput"
                   value={toValue}
                   onValueChange={setToValue}
+                  onAliasPick={pickOffice}
                   buildingNames={PLACE_NAMES}
                   extra={roomSuggestions}
                   placeholder={directions ? "To (building, room or DIGIPIN)" : "Search buildings or rooms"}
@@ -1138,7 +1167,7 @@ export default function App() {
               {/* a dropped pin's To already is its DIGIPIN */}
               {shownRoom && (
                 <p className="-mt-1 px-1 text-sm font-medium">
-                  Room {shownRoom.room}
+                  {roomTitle(shownRoom)}
                   {roomDetail(shownRoom, false) && ` · ${roomDetail(shownRoom, false)}`}
                   {shownRoom.seats && (
                     <>

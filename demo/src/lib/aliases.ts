@@ -1,7 +1,6 @@
 // Short forms OSM names lack; fuzzy.ts derives initialisms. Keys are exact building names.
 export const BUILDING_ALIASES: Record<string, string[]> = {
-  // KCDH is in the basement
-  KReSIT: ["KCDH", "Koita Centre for Digital Health", "Kanwal Rekhi", "CMINDS"],
+  KReSIT: ["Kanwal Rekhi", "CMINDS"],
   "Department of Bio sciences and Bio engineering": ["BSBE", "Biosciences"],
   "Department of Metalurgical and Material Science Engineering": ["MEMS", "Metallurgy"],
   "Department of Energy Science and Engineering": ["ESE", "DESE", "CCD", "Cafe Coffee Day", "ESED", "Environmental Science and Engineering", "Department of Environmental Science and Engineering"],
@@ -16,25 +15,16 @@ export const BUILDING_ALIASES: Record<string, string[]> = {
   "Aerospace Department": ["AE"],
   "Aerospace Engineering (Annex) + HSS": ["HSS", "Humanities", "Humanities and Social Sciences"],
   "Mathematics Department": ["Maths"],
-  // opposite CSRE; GESH is on the 2nd floor
-  "Old CESE Building": ["GESH", "Research Hub for Green Energy and Sustainability", "CESE"],
+  // opposite CSRE
+  "Old CESE Building": ["CESE"],
   "Nandan Nilekani Main Building": ["MB"],
   SAC: ["Student Activity Centre"],
   "State Bank of India": ["SBI", "Bank", "ATM"],
   Hospital: ["IIT Hospital"],
   "Post Office": ["IIT Bombay Post Office", "PO"],
   "New SAC": ["New Student Activity Centre", "New Students Activity Centre"],
-  // BETIC is on the 6th floor
-  "COPT - Aerospace (New) Department": ["New Aerospace", "Aerospace New", "BETIC", "IITB-ICICI BETIC Hub"],
-  // SINE is on the 5th floor
-  "Rahul Bajaj Technology Innovation Centre": [
-    "SINE",
-    "Society for Innovation and Entrepreneurship",
-    "IRCC",
-    "Industrial Research and Consulting Centre",
-    "Industrial Design Centre",
-    "Quantum Cafe",
-  ],
+  "COPT - Aerospace (New) Department": ["New Aerospace", "Aerospace New"],
+  "Rahul Bajaj Technology Innovation Centre": ["Industrial Design Centre", "Quantum Cafe"],
   AB1: ["Academic Building 1"],
   AB2: ["Academic Building 2"],
   "Fire and Safety Department": ["Fire Station", "Fire Brigade"],
@@ -60,3 +50,20 @@ export const BUILDING_ALIASES: Record<string, string[]> = {
 };
 // Bungalows are also called A-1, A-2, ...
 for (let n = 1; n <= 19; n++) BUILDING_ALIASES[n === 1 ? "Bungalow 1 (Directors Bungalow)" : `Bungalow ${n}`] = [`A-${n}`];
+
+// offices inside buildings: floor as in iitb-rooms.json, at = pin spot (default the centre)
+export interface Office {
+  building: string;
+  names: string[];
+  floor: string;
+  at?: [number, number];
+}
+export const OFFICES: Office[] = [
+  { building: "KReSIT", names: ["KCDH", "Koita Centre for Digital Health"], floor: "B", at: [72.91592, 19.13026] }, // south end
+  { building: "Old CESE Building", names: ["GESH", "Research Hub for Green Energy and Sustainability"], floor: "2" },
+  { building: "COPT - Aerospace (New) Department", names: ["BETIC", "IITB-ICICI BETIC Hub"], floor: "6" },
+  { building: "Rahul Bajaj Technology Innovation Centre", names: ["SINE", "Society for Innovation and Entrepreneurship"], floor: "5" },
+  { building: "Rahul Bajaj Technology Innovation Centre", names: ["IRCC", "Industrial Research and Consulting Centre"], floor: "2" },
+];
+for (const o of OFFICES) (BUILDING_ALIASES[o.building] ??= []).push(...o.names);
+export const OFFICE_BY_NAME = new Map(OFFICES.flatMap((o) => o.names.map((n) => [n, o] as const)));

@@ -14,6 +14,13 @@ export function buildingPath(name: string): string {
   return `b/${buildingSlug(name)}/`;
 }
 
+/** A place's share page, reopening a picked room or office. */
+export function placeLink(base: string | URL, place: string, room?: string): URL {
+  const url = new URL(buildingPath(place), base);
+  if (room) url.searchParams.set("room", room);
+  return url;
+}
+
 /** The slug in a pathname like "/iitbmap/b/<slug>/", or null. */
 export function slugFromPathname(pathname: string): string | null {
   return pathname.match(/\/b\/([^/]+)\/?$/)?.[1] ?? null;

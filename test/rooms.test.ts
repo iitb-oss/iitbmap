@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findRooms, floorBand, floorLabel, roomDetail, roomIndex, roomsByFloor, type RoomData } from "../demo/src/lib/rooms";
+import { findRooms, floorBand, floorLabel, officeHit, roomDetail, roomIndex, roomsByFloor, type RoomData } from "../demo/src/lib/rooms";
+import { readSharedRoute, routeLink } from "../demo/src/lib/route-url";
 import type { Feature, Polygon } from "geojson";
 import { readFileSync } from "node:fs";
 import data from "../src/iitb-rooms.json";
@@ -90,5 +91,22 @@ describe("floorLabel", () => {
     expect(["G", "B", "1", "2", "3", "11", "21", ""].map(floorLabel)).toEqual([
       "Ground floor", "Basement", "1st floor", "2nd floor", "3rd floor", "11th floor", "21st floor", "",
     ]);
+  });
+});
+
+describe("offices", () => {
+  it("places an office alias on its building's floor", () => {
+    expect(officeHit("IRCC")).toMatchObject({ building: "Rahul Bajaj Technology Innovation Centre", floor: "2", office: true });
+    expect(roomDetail(officeHit("IRCC")!)).toBe("Rahul Bajaj Technology Innovation Centre · 2nd floor");
+    expect(officeHit("KCDH")).toMatchObject({ building: "KReSIT", floor: "B", at: [72.91592, 19.13026] });
+    expect(officeHit("CSE")).toBeNull();
+  });
+});
+
+describe("shared room links", () => {
+  it("keeps the room on a route link and reads it back", () => {
+    const link = routeLink("https://example.org/app/", { from: "SAC", to: "KReSIT", profile: "walk", routeIndex: 0, room: "KCDH" });
+    expect(readSharedRoute(link)).toMatchObject({ to: "KReSIT", room: "KCDH" });
+    expect(readSharedRoute(routeLink("https://example.org/app/?room=X", { from: "SAC", to: "KReSIT", profile: "walk", routeIndex: 0 }))?.room).toBeUndefined();
   });
 });

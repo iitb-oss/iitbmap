@@ -7,6 +7,8 @@ export interface SharedRoute {
   to: string;
   profile: RoutingProfile;
   routeIndex: number;
+  /** a picked room or office in the destination ("A906", "IRCC") */
+  room?: string;
 }
 
 export function readSharedRoute(url: URL): SharedRoute | null {
@@ -18,7 +20,8 @@ export function readSharedRoute(url: URL): SharedRoute | null {
   const requestedIndex = Number(url.searchParams.get("route") ?? 0);
   const routeIndex = Number.isInteger(requestedIndex) && requestedIndex >= 0 ? requestedIndex : 0;
 
-  return { from, to, profile, routeIndex };
+  const room = url.searchParams.get("room")?.trim();
+  return { from, to, profile, routeIndex, room: room || undefined };
 }
 
 /** App link for a route, under the destination's /b/<slug>/ page when it's a building. */
@@ -36,5 +39,7 @@ export function writeSharedRoute(url: URL, route: SharedRoute): URL {
   url.searchParams.set("profile", route.profile);
   if (route.routeIndex > 0) url.searchParams.set("route", String(route.routeIndex));
   else url.searchParams.delete("route");
+  if (route.room) url.searchParams.set("room", route.room);
+  else url.searchParams.delete("room");
   return url;
 }

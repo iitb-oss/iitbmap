@@ -1,6 +1,7 @@
 // rooms placed on map buildings by scripts/match-rooms.py
 import type { Feature, Polygon } from "geojson";
 import { buildingCentroid } from "../../../src/buildings";
+import { OFFICE_BY_NAME } from "./aliases";
 import { normalizeName } from "./building-url";
 
 export interface RoomHit {
@@ -13,6 +14,16 @@ export interface RoomHit {
   label: string;
   /** seats, for the Academic Section's classrooms */
   seats?: number;
+  /** an office found by its alias, e.g. IRCC */
+  office?: boolean;
+  /** where in the building to pin it; default its middle */
+  at?: [number, number];
+}
+
+/** An office alias with a known floor, as a hit in its building. */
+export function officeHit(alias: string): RoomHit | null {
+  const o = OFFICE_BY_NAME.get(alias);
+  return o ? { room: alias, floor: o.floor, building: o.building, label: o.building, office: true, at: o.at } : null;
 }
 
 export interface RoomData {
@@ -35,6 +46,16 @@ export function roomIndex(data: RoomData): RoomIndex {
   }
   return index;
 }
+
+/** A shared "room=" in its building: an office alias or a room number. */
+export function findRoomHit(index: RoomIndex, room: string, building: string | undefined): RoomHit | null {
+  const office = officeHit(room);
+  if (office) return office.building === building ? office : null;
+  return findRooms(index, room).find((h) => h.room === room && h.building === building) ?? null;
+}
+
+/** "Room LA 001", or an office's own name. */
+export const roomTitle = (hit: RoomHit) => (hit.office ? hit.room : `Room ${hit.room}`);
 
 /** Exact room numbers first, then ones that start with the query; only for queries with a digit. */
 export function findRooms(index: RoomIndex, query: string, limit = 8): RoomHit[] {
