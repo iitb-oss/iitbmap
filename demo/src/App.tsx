@@ -42,6 +42,8 @@ import { EDIT_ENABLED, downloadEdits, loadEdits, saveEdits } from "@/lib/edits";
 import { drawDraft, installEditor } from "@/lib/editor";
 import { EditPanel } from "@/components/edit-panel";
 import { MY_LOCATION_LABEL, PLACE_NAMES, findPlace, findPlaceCentroid, unresolvedMessage, formatRouteInfo, resolvePlace } from "@/lib/places";
+import { isFolded, panelMode } from "@/lib/panel-mode";
+import { cn } from "@/lib/utils";
 import { haversineMeters } from "../../src/geo";
 import { PALETTE } from "../../src/style";
 
@@ -320,6 +322,25 @@ const ROUGH_FIX_M = 50;
 // the glyphs the labels use: Latin and general punctuation
 const GLYPH_RANGES = ["0-255", "8192-8447"];
 
+/** The folded panel's one line; a tap unfolds it. */
+function FoldedLine({ title, subtitle, label, className, onClick }: { title: string; subtitle?: string; label: string; className?: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className={cn("flex min-h-11 items-center gap-2 rounded-md border px-3 py-1.5 text-left outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50", className)}
+      aria-expanded={false}
+      onClick={onClick}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{title}</span>
+        {subtitle && <span className="block truncate text-xs text-muted-foreground">{subtitle}</span>}
+      </span>
+      <ChevronDown className="size-4 shrink-0" aria-hidden />
+      <span className="sr-only">{label}</span>
+    </button>
+  );
+}
+
 export default function App() {
   const mapContainerRef = React.useRef<HTMLElement>(null);
   const mapRef = React.useRef<maplibregl.Map | null>(null);
@@ -402,7 +423,9 @@ export default function App() {
   const foldOnPhone = () => {
     if (window.matchMedia(FOLD_SCREEN).matches) setCollapsed(true);
   };
-  const compact = collapsed && directions && routeState.routes.length > 0;
+  const foldUnlessTyping = () => {
+    if (!(document.activeElement instanceof HTMLInputElement)) foldOnPhone();
+  };
   const [editing, setEditing] = React.useState(false);
   const [drawing, setDrawing] = React.useState<[number, number][] | null>(null);
   const [edits, setEdits] = React.useState<MapEdits>(() => (EDIT_ENABLED ? loadEdits() : IITB_EDITS));
@@ -459,6 +482,14 @@ export default function App() {
   const [room, setRoom] = React.useState<RoomHit | null>(null);
   const shownRoom = room && room.building === toName ? room : null;
   const toPlace = shownRoom?.at ?? resolvePlace(toValue);
+  const hasRoute = routeState.routes.length > 0;
+  const mode = panelMode({ directions, collapsed, hasPlace: !!toPlace, hasRoute, awaitingFix: fromIsMe && !myLocation });
+  const compact = isFolded(mode);
+  const pickedPlace = toPlace ? toValue.trim() : "";
+  // a picked place folds to one line
+  React.useEffect(() => {
+    if (pickedPlace) foldUnlessTyping();
+  }, [pickedPlace]);
   const appBase = new URL(import.meta.env.BASE_URL, window.location.origin);
   const sharedRoute = (routeIndex: number): SharedRoute => ({ from: fromValue.trim(), to: toValue.trim(), profile, routeIndex, room: shownRoom?.room });
 
@@ -545,7 +576,7 @@ export default function App() {
     const nextIndex = Math.min(routeIndex, found.length - 1);
     setRouteState({ routes: found, selectedIndex: nextIndex });
     if (pushUrl) pushRouteUrl(nextIndex);
-    if (!(document.activeElement instanceof HTMLInputElement)) foldOnPhone();
+    foldUnlessTyping();
 
     fromMarkerRef.current = setMarker(map, fromMarkerRef.current, fromPlace, "start", fromIsMe ? "your location" : fromValue.trim());
     toMarkerRef.current = setMarker(map, toMarkerRef.current, to, "end", toValue.trim(), caption);
@@ -599,6 +630,10 @@ export default function App() {
     toMarkerRef.current = null;
   };
 
+  const openDirections = () => {
+    setCollapsed(false);
+    setDirections(true);
+  };
   // clear From too, or style.load re-routes
   const exitDirections = () => {
     setDirections(false);
@@ -839,11 +874,12 @@ export default function App() {
 
   // a shown route always matches From, To and the profile; the GPS effect owns "my location"
   React.useEffect(() => {
-    if (!directions || fromIsMe || !styleReadyRef.current) return;
+    if (!directions || !styleReadyRef.current) return;
     if (!fromPlace || !toPlace) {
-      if (routeState.routes.length > 0) clearRoute();
+      if (hasRoute) clearRoute();
       return;
     }
+    if (fromIsMe) return;
     // typing "Hostel 1" on the way to "Hostel 12" would route and push history per exact match
     const timer = setTimeout(() => {
       // back/forward: the URL already names this route and index
@@ -966,7 +1002,7 @@ export default function App() {
     if (arrived) navigator.vibrate?.([100, 50, 100]);
   }, [arrived]);
 
-  const [offline, setOffline] = React.useState("");
+  const [offline, setOffline] = React.useState<{ phase: "idle" | "saving" | "saved" | "failed"; text: string }>({ phase: "idle", text: "" });
   const saveForOffline = async () => {
     const map = mapRef.current;
     if (!map) return;
@@ -988,15 +1024,19 @@ export default function App() {
       ...[...stacks].flatMap((stack) => GLYPH_RANGES.map((range) => style.glyphs!.replace("{fontstack}", stack).replace("{range}", range))),
     ];
     if (!navigator.onLine) {
-      setOffline("You're offline. Connect to the internet to save the map.");
+      setOffline({ phase: "failed", text: "You're offline. Connect to the internet to save the map." });
       return;
     }
-    setOffline("Saving…");
+    setOffline({ phase: "saving", text: "Saving…" });
     try {
-      await saveOffline(urls, (done, total) => setOffline(`Saving… ${Math.round((done / total) * 100)}%`));
-      setOffline("Saved. The map now works without a connection.");
+      await saveOffline(urls, (done, total) => {
+        const text = `Saving… ${Math.round((done / total) * 100)}%`;
+        // same percent, same state: no render per tile
+        setOffline((s) => (s.text === text ? s : { phase: "saving", text }));
+      });
+      setOffline({ phase: "saved", text: "Saved. The map now works without a connection." });
     } catch (err) {
-      setOffline(err instanceof DOMException && err.name === "QuotaExceededError" ? "This device is out of storage space." : toErrorMessage(err));
+      setOffline({ phase: "failed", text: err instanceof DOMException && err.name === "QuotaExceededError" ? "This device is out of storage space." : toErrorMessage(err) });
     }
   };
 
@@ -1043,6 +1083,7 @@ export default function App() {
         ref={panelRef}
         role="region"
         aria-label="Search and directions"
+        data-mode={mode}
         className="absolute z-10 w-[min(320px,calc(100vw-24px))] gap-0 overflow-y-auto rounded-lg p-3 shadow-[var(--float-shadow)]"
         style={{
           top: "max(12px, env(safe-area-inset-top))",
@@ -1051,35 +1092,37 @@ export default function App() {
         }}
       >
         <CardContent className="flex flex-col gap-3 p-0">
-          <div className="flex items-center gap-2">
-            {/* blue on transparent; the white backing keeps it legible in dark mode */}
-            <img src={`${import.meta.env.BASE_URL}iitb-logo.svg`} alt="IIT Bombay logo" className="size-9 shrink-0 rounded-md bg-white p-0.5" />
-            <h1 className="min-w-0 flex-1 text-sm font-semibold leading-tight break-words">IIT Bombay Campus Map</h1>
-            <Button variant="ghost" size="sm" className="shrink-0" asChild>
-              <a href={`${import.meta.env.BASE_URL}reach/${toName ? `?to=${encodeURIComponent(toName)}` : ""}`}>
-                <TrainFront className="size-4" />
-                Getting here
-              </a>
-            </Button>
-            {(installPrompt || INSTALL_HINT) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                title="Install app"
-                aria-label="Install app"
-                aria-expanded={installPrompt ? undefined : installHintOpen}
-                onClick={() => (installPrompt ? installPrompt.prompt().then(() => setInstallPrompt(null)) : setInstallHintOpen((o) => !o))}
-              >
-                <Download className="size-4" />
+          {mode !== "place-folded" && (
+            <div className="flex items-center gap-2">
+              {/* blue on transparent; the white backing keeps it legible in dark mode */}
+              <img src={`${import.meta.env.BASE_URL}iitb-logo.svg`} alt="IIT Bombay logo" className="size-9 shrink-0 rounded-md bg-white p-0.5" />
+              <h1 className="min-w-0 flex-1 text-sm font-semibold leading-tight break-words">IIT Bombay Campus Map</h1>
+              <Button variant="ghost" size="sm" className="shrink-0" asChild>
+                <a href={`${import.meta.env.BASE_URL}reach/${toName ? `?to=${encodeURIComponent(toName)}` : ""}`}>
+                  <TrainFront className="size-4" />
+                  Getting here
+                </a>
               </Button>
-            )}
-            {directions && (
-              <Button variant="ghost" size="icon" className="shrink-0" title="Close directions" aria-label="Close directions" onClick={exitDirections}>
-                <X className="size-4" />
-              </Button>
-            )}
-          </div>
+              {(installPrompt || INSTALL_HINT) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  title="Install app"
+                  aria-label="Install app"
+                  aria-expanded={installPrompt ? undefined : installHintOpen}
+                  onClick={() => (installPrompt ? installPrompt.prompt().then(() => setInstallPrompt(null)) : setInstallHintOpen((o) => !o))}
+                >
+                  <Download className="size-4" />
+                </Button>
+              )}
+              {directions && (
+                <Button variant="ghost" size="icon" className="shrink-0" title="Close directions" aria-label="Close directions" onClick={exitDirections}>
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
+          )}
           {installHintOpen && INSTALL_HINT && (
             <p role="status" className="text-sm text-muted-foreground">
               Install the map as an app: {INSTALL_HINT}
@@ -1095,22 +1138,21 @@ export default function App() {
           <p role="status" className="sr-only">
             {guiding ? (arrived ? arrivedText : steps[1]?.text) : ""}
           </p>
-          {compact && selectedRoute && (
-            <button
-              type="button"
-              className="flex min-h-11 items-center gap-2 rounded-md border px-3 py-1.5 text-left outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              aria-expanded={false}
+          {mode === "place-folded" && (
+            <div className="flex items-center gap-2">
+              <FoldedLine className="min-w-0 flex-1" title={pickedPlace} subtitle={shownRoom ? roomTitle(shownRoom) : undefined} label="Show search and options" onClick={() => setCollapsed(false)} />
+              <Button size="icon" title="Directions" aria-label="Directions" onClick={openDirections}>
+                <Navigation className="size-4" />
+              </Button>
+            </div>
+          )}
+          {mode === "route-folded" && selectedRoute && (
+            <FoldedLine
+              title={`${fromIsMe ? "Your location" : fromValue.trim()} → ${toValue.trim()}`}
+              subtitle={formatRouteInfo(selectedRoute, profile)}
+              label="Edit route"
               onClick={() => setCollapsed(false)}
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
-                  {fromIsMe ? "Your location" : fromValue.trim()} → {toValue.trim()}
-                </span>
-                <span className="block text-xs text-muted-foreground">{formatRouteInfo(selectedRoute, profile)}</span>
-              </span>
-              <ChevronDown className="size-4 shrink-0" aria-hidden />
-              <span className="sr-only">Edit route</span>
-            </button>
+            />
           )}
           {!compact && directions && (
             <div className="flex items-center gap-2">
@@ -1244,7 +1286,7 @@ export default function App() {
               <div className="flex flex-wrap gap-2">
                 {/* in directions mode the route follows From, To and Walk/Drive by itself */}
                 {!directions && (
-                  <Button className="basis-full" onClick={() => setDirections(true)} disabled={!toPlace}>
+                  <Button className="basis-full" onClick={openDirections} disabled={!toPlace}>
                     <Navigation className="size-4" />
                     Directions
                   </Button>
@@ -1270,7 +1312,7 @@ export default function App() {
               <Input id="shareLink" readOnly value={manualLink} autoFocus onFocus={(e) => e.currentTarget.select()} />
             </div>
           )}
-          {directions && fromIsMe && !myLocation && !error && (
+          {mode === "locating" && !error && (
             <p role="status" className="px-1 text-sm text-muted-foreground">
               {geoDenied ? "Location access is off. Allow it for this site, or type where you are in From." : "Finding your location…"}
             </p>
@@ -1281,7 +1323,7 @@ export default function App() {
             </Alert>
           )}
 
-          {!compact && routeState.routes.length > 0 && (
+          {mode === "route" && (
             <ToggleGroup
               type="single"
               orientation="vertical"
@@ -1323,7 +1365,7 @@ export default function App() {
             </details>
           )}
 
-          {!compact && routeState.routes.length > 0 && (
+          {mode === "route" && (
             <a href={issueLink()} target="_blank" rel="noopener" className="self-start rounded-sm px-1 text-sm text-muted-foreground underline underline-offset-4 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:py-3">
               Route wrong? Report it
             </a>
@@ -1416,13 +1458,13 @@ export default function App() {
               </div>
               {OFFLINE_OK && (
                 <div className="flex flex-col gap-1">
-                  <Button variant="outline" size="wrap" onClick={saveForOffline} disabled={offline.startsWith("Saving")}>
+                  <Button variant="outline" size="wrap" onClick={saveForOffline} disabled={offline.phase === "saving"}>
                     <CloudDownload className="size-4" />
                     Save map for offline use
                   </Button>
-                  {offline && (
-                    <p role="status" className="text-xs text-muted-foreground">
-                      {offline}
+                  {offline.text && (
+                    <p role="status" className="text-xs text-muted-foreground" data-phase={offline.phase}>
+                      {offline.text}
                     </p>
                   )}
                 </div>
